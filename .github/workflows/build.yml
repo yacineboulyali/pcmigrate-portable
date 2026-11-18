@@ -31,9 +31,18 @@ jobs:
           name: PCMigrate
           path: dist/*
 
+      - name: Read version
+        run: echo "VER=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_ENV"
+
+      # Every push to main (re)publishes release v<VERSION> with the built files.
+      # To ship a new version: change VERSION + RELEASE_NOTES.md and push.
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ env.VER }}
+          target_commitish: ${{ github.sha }}
+          name: PC Migrate Portable ${{ env.VER }}
+          body_path: RELEASE_NOTES.md
           files: dist/*
-          generate_release_notes: true
+          make_latest: true
