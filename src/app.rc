@@ -1,0 +1,25 @@
+#include <winver.h>
+1 ICON "app.ico"
+1 24 "app.manifest"
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1,1,0,0
+PRODUCTVERSION 1,1,0,0
+FILEOS 0x40004
+FILETYPE 0x1
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "FileDescription", "PC Migrate Portable - PC to PC migration tool"
+      VALUE "FileVersion", "1.1.0.0"
+      VALUE "ProductName", "PC Migrate Portable"
+      VALUE "ProductVersion", "1.1.0.0"
+      VALUE "OriginalFilename", "PCMigrate.exe"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
