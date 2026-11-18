@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PC Migrate Portable — نقل الملفات والبرامج إلى حاسوب جديد</title>
+<meta name="description" content="Portable PC-to-PC migration tool: files, browsers, Windows settings and installed programs with their data. Works in Hiren's BootCD PE.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Kufi+Arabic:wght@600;700;800&family=Noto+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b2a4a;--bg2:#0e5a8a;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.14);--txt:#e8f1fb;--mut:#a9c6e4;--acc:#ff9a1f}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+html{background:#0f3a63}
+body{background:radial-gradient(1200px 600px at 80% -10%,rgba(14,90,138,.55),transparent 70%),linear-gradient(180deg,#0b2a4a 0,#123c69 900px,#0f3a63 100%);color:var(--txt);font-family:Inter,'Noto Sans Arabic',sans-serif;line-height:1.6;min-height:100vh}
+[lang=ar] body, body.ar{font-family:Inter,'Noto Sans Arabic',sans-serif}
+a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+header{position:sticky;top:0;z-index:10;background:rgba(9,32,58,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;justify-content:space-between;height:64px;gap:14px}
+.logo{display:flex;align-items:center;gap:10px;font:800 18px Inter;direction:ltr;text-decoration:none}
+.logo svg{width:30px;height:30px}
+.tabs{display:flex;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+.tab{border:0;background:transparent;color:var(--mut);font:600 15px Inter,'Noto Kufi Arabic';padding:8px 18px;border-radius:9px;cursor:pointer;transition:.2s}
+.tab[aria-selected=true]{background:var(--acc);color:#1b1b1b}
+.tab:hover:not([aria-selected=true]){color:#fff;background:rgba(255,255,255,.08)}
+.gh{font:600 14px Inter;text-decoration:none;color:var(--mut);display:flex;align-items:center;gap:6px}
+.gh:hover{color:#fff}
+.panel{display:none;animation:fade .35s ease}
+.panel.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.hero{text-align:center;padding:84px 0 36px}
+.hero h1{font:800 clamp(30px,5vw,52px)/1.2 Inter,'Noto Kufi Arabic';margin-bottom:14px}
+.hero p{font-size:clamp(16px,2vw,20px);color:var(--mut);max-width:760px;margin:0 auto 28px}
+.pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:30px}
+.pill{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 14px;font-size:14px;color:#d6e6f6}
+.dl{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:13px 22px;border-radius:12px;text-decoration:none;font:700 16px Inter,'Noto Kufi Arabic';border:1px solid var(--line);background:var(--card);transition:.2s}
+.btn small{display:block;font:500 12px Inter;color:var(--mut)}
+.btn.primary{background:var(--acc);color:#1b1b1b;border-color:var(--acc)}
+.btn.primary small{color:#4a3005}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.note{margin:18px auto 0;max-width:720px;font-size:13.5px;color:var(--mut)}
+section{padding:46px 0}
+h2{font:800 clamp(24px,3.2vw,34px)/1.3 Inter,'Noto Kufi Arabic';margin-bottom:8px}
+.lead{color:var(--mut);margin-bottom:28px;font-size:16.5px}
+.flow{border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.flow img{display:block;width:100%;height:auto}
+.steps{display:grid;gap:30px}
+.step{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,1.6fr);gap:30px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px}
+.step:nth-child(even){grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr)}
+.step:nth-child(even) .txt{order:2}
+.num{display:inline-flex;width:40px;height:40px;border-radius:50%;background:var(--acc);color:#1b1b1b;font:800 18px Inter;align-items:center;justify-content:center;margin-bottom:12px;box-shadow:0 0 0 6px rgba(255,154,31,.22)}
+.step h3{font:700 22px/1.4 Inter,'Noto Kufi Arabic';margin-bottom:8px}
+.step p{color:#d6e6f6;font-size:15.5px}
+.step ul{margin:10px 0 0;padding-inline-start:20px;color:#cfe0f2;font-size:15px}
+.tag{display:inline-block;margin-top:12px;font:600 12px Inter;letter-spacing:.6px;text-transform:uppercase;color:var(--acc)}
+.gif{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#0a223d;box-shadow:0 14px 40px rgba(0,0,0,.35);aspect-ratio:900/862}
+.gif img{display:block;width:100%;height:100%;object-fit:cover}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:22px}
+.shot{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;text-decoration:none;transition:.2s}
+.shot:hover{transform:translateY(-3px);border-color:rgba(255,154,31,.6)}
+.shot img{display:block;width:100%;height:auto}
+.shot div{padding:12px 16px;font:600 15px Inter,'Noto Kufi Arabic'}
+.limits{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.lim{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.lim b{display:block;font:700 16px Inter,'Noto Kufi Arabic';margin-bottom:6px}
+.lim p{color:#cfe0f2;font-size:14.5px}
+footer{border-top:1px solid var(--line);padding:28px 0 40px;color:var(--mut);font-size:14px;text-align:center}
+code{font-family:Inter;background:rgba(255,255,255,.1);padding:1px 6px;border-radius:5px;font-size:.92em;direction:ltr;unicode-bidi:isolate}
+[dir=ltr] .panel, .panel[dir=ltr]{text-align:left}
+@media (max-width:860px){.step,.step:nth-child(even){grid-template-columns:1fr}.step:nth-child(even) .txt{order:0}.gh span{display:none}.logo span{display:none}}
+</style>
+</head>
+<body>
+<header><div class="wrap bar">
+  <a class="logo" href="#"><svg viewBox="0 0 16 16"><rect x="0.5" y="2" width="6.5" height="5" rx="1" fill="#93a3b8"/><rect x="9" y="2" width="6.5" height="5" rx="1" fill="#3b9cff"/><rect x="1.3" y="2.8" width="4.9" height="3.4" fill="#eaf5ff"/><rect x="9.8" y="2.8" width="4.9" height="3.4" fill="#eaf5ff"/><path d="M4.5 12h5v-1.6l3 2.6-3 2.6V14h-5z" fill="#3ddc84"/></svg><span>PC Migrate Portable</span></a>
+  <div class="tabs" role="tablist" aria-label="Language">
+    <button class="tab" role="tab" id="tab-ar" aria-controls="ar" aria-selected="true" data-lang="ar">العربية</button>
+    <button class="tab" role="tab" id="tab-en" aria-controls="en" aria-selected="false" data-lang="en">English</button>
+  </div>
+  <a class="gh" href="https://github.com/yacineboulyali/pcmigrate-portable"><svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+</div></header>
+
+<!-- ======================= العربية ======================= -->
+<main id="ar" class="panel on" role="tabpanel" aria-labelledby="tab-ar" dir="rtl" lang="ar">
+<div class="wrap">
+  <div class="hero">
+    <h1>انقل حاسوبك القديم إلى الجديد<br>بنقرات قليلة</h1>
+    <p>أداة مجانية ومحمولة تنقل الملفات والمتصفحات وإعدادات ويندوز <b>والبرامج المثبتة مع بياناتها</b> — وتعمل حتى من فلاشة Hiren's BootCD PE.</p>
+    <div class="pills"><span class="pill">ملف واحد <bdi>~470 KB</bdi></span><span class="pill">بدون تثبيت</span><span class="pill">Windows 10 / 11</span><span class="pill">Hiren's BootCD PE</span><span class="pill">مفتوح المصدر</span></div>
+    <div class="dl">
+      <a class="btn primary" href="https://github.com/yacineboulyali/pcmigrate-portable/releases/latest/download/PCMigrate-Setup-1.1.0.exe">⬇ ملف التثبيت<small>PCMigrate-Setup-1.1.0.exe</small></a>
+      <a class="btn" href="https://github.com/yacineboulyali/pcmigrate-portable/releases/latest/download/PCMigrate-Portable-1.1.0.zip">النسخة المحمولة<small>Portable zip + .bat</small></a>
+      <a class="btn" href="https://github.com/yacineboulyali/pcmigrate-portable/releases">كل الإصدارات<small>Releases</small></a>
+    </div>
+    <p class="note">⚠️ البرنامج غير موقّع رقميًا، فقد يظهر تحذير SmartScreen: اضغط <bdi><b>More info</b></bdi> ثم <bdi><b>Run anyway</b></bdi>.</p>
+  </div>
+
+  <section><h2>كيف يعمل؟</h2><p class="lead">ثلاث خطوات: انسخ من الجهاز القديم، احمل الحزمة على قرص خارجي، واستعدها على الجهاز الجديد.</p>
+    <div class="flow"><img src="media/ar/00-how-it-works.png" alt="كيف يعمل PC Migrate Portable" loading="lazy"></div></section>
+
+  <section><h2>شاهد طريقة العمل خطوة بخطوة</h2><p class="lead">صور متحركة تعرض كل مرحلة من مراحل النقل.</p>
+  <div class="steps">
+    <div class="step"><div class="txt"><span class="num">1</span><h3>يكتشف ويندوز القديم والمستخدمين</h3><p>شغّل البرنامج على الجهاز القديم (من Hiren's أو من ويندوز). يكتشف أقراص ويندوز والمستخدمين تلقائيًا، فتحدد ما تريد نقله.</p><ul><li>الملفات: سطح المكتب، المستندات، الصور...</li><li>المتصفحات: Chrome و Edge و Firefox...</li><li>إعدادات ويندوز و Wi-Fi</li></ul><span class="tag">Backup · old PC</span></div><div class="gif"><img src="media/ar/01-detect-and-select.gif" alt="اكتشاف ويندوز واختيار ما يُنقل" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">2</span><h3>اختر البرامج التي تُنقل مع بياناتها</h3><p>فعّل خيار <b>Programs with their files &amp; data</b>، فتظهر قائمة البرامج المثبتة مع حجمها ومكان تثبيتها. حدّد ما تريد، ثم <b>OK</b>.</p><ul><li>ملفات البرنامج والسجلّ (Registry) والخدمات</li><li>الاختصارات وبيانات كل مستخدم</li></ul><span class="tag">Program chooser</span></div><div class="gif"><img src="media/ar/02-choose-programs.gif" alt="اختيار البرامج" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">3</span><h3>ابدأ النسخ إلى القرص الخارجي</h3><p>اضغط <b>Start Backup</b>. يظهر التقدم والسجل لحظة بلحظة، وفي النهاية يكون مجلد <code>PCMigrate_التاريخ</code> جاهزًا على القرص.</p><span class="tag">Start Backup</span></div><div class="gif"><img src="media/ar/03-start-backup.gif" alt="بدء النسخ الاحتياطي" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">4</span><h3>استعد الملفات والإعدادات على الجهاز الجديد</h3><p>افتح تبويب <b>Restore</b>: يعثر البرنامج على الحزمة تلقائيًا. اختر المستخدم، ثم <b>Start Restore</b>. الملفات الأحدث على الجهاز الجديد لا تُستبدل.</p><span class="tag">Restore · new PC</span></div><div class="gif"><img src="media/ar/04-restore-files.gif" alt="استعادة الملفات والإعدادات" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">5</span><h3>انقل البرامج أو ثبّتها بنقرة واحدة</h3><p>اضغط <b>Install / transfer checked</b>:</p><ul><li><b>Copy from package</b>: يُنقل البرنامج من الحزمة مع بياناته، بدون إنترنت</li><li><b>winget</b>: يُنزَّل ويُثبَّت نظيفًا من الإنترنت</li><li>ثم أعد تشغيل الجهاز ✓</li></ul><span class="tag">Programs</span></div><div class="gif"><img src="media/ar/05-transfer-programs.gif" alt="نقل البرامج وتثبيتها" loading="lazy"></div></div>
+  </div></section>
+
+  <section><h2>شرح كل الأزرار</h2><p class="lead">كل زر عليه رقم، وشرحه بجانبه. اضغط على الصورة لتكبيرها.</p>
+  <div class="shots">
+    <a class="shot" href="media/ar/01-backup.png" target="_blank"><img src="media/ar/01-backup.png" alt="تبويب Backup" loading="lazy"><div>تبويب Backup — الجهاز القديم</div></a>
+    <a class="shot" href="media/ar/02-program-chooser.png" target="_blank"><img src="media/ar/02-program-chooser.png" alt="اختيار البرامج" loading="lazy"><div>نافذة اختيار البرامج</div></a>
+    <a class="shot" href="media/ar/03-restore.png" target="_blank"><img src="media/ar/03-restore.png" alt="تبويب Restore" loading="lazy"><div>تبويب Restore — الجهاز الجديد</div></a>
+  </div></section>
+
+  <section><h2>حدود يجب معرفتها</h2><div class="limits">
+    <div class="lim"><b>كلمات مرور المتصفحات</b><p>كلمات المرور في Chrome و Edge مشفّرة بمفتاح خاص بالجهاز، فاستعمل المزامنة (Sync). أما Firefox فينتقل بالكامل.</p></div>
+    <div class="lim"><b>البرامج الحساسة</b><p>برامج الحماية و VPN والتعريفات، وتراخيص Office و Adobe تحتاج غالبًا إعادة تثبيت.</p></div>
+    <div class="lim"><b>Wi-Fi</b><p>تُنقل كلمات المرور كاملة إذا أُخذت النسخة من ويندوز وهو يعمل. أما من Hiren's فتنتقل أسماء الشبكات فقط.</p></div>
+    <div class="lim"><b>نصيحة</b><p>جرّب البرنامج أولًا على جهاز وهمي (VM)، واستعمل قرصًا بصيغة NTFS أو exFAT.</p></div>
+  </div></section>
+</div></main>
+
+<!-- ======================= English ======================= -->
+<main id="en" class="panel" role="tabpanel" aria-labelledby="tab-en" dir="ltr" lang="en" hidden>
+<div class="wrap">
+  <div class="hero">
+    <h1>Move your old PC to a new one<br>in a few clicks</h1>
+    <p>A free, portable tool that moves files, browsers, Windows settings <b>and installed programs with their data</b> — it even runs from a Hiren's BootCD PE USB stick.</p>
+    <div class="pills"><span class="pill">Single file ~470 KB</span><span class="pill">No install</span><span class="pill">Windows 10 / 11</span><span class="pill">Hiren's BootCD PE</span><span class="pill">Open source</span></div>
+    <div class="dl">
+      <a class="btn primary" href="https://github.com/yacineboulyali/pcmigrate-portable/releases/latest/download/PCMigrate-Setup-1.1.0.exe">⬇ Installer<small>PCMigrate-Setup-1.1.0.exe</small></a>
+      <a class="btn" href="https://github.com/yacineboulyali/pcmigrate-portable/releases/latest/download/PCMigrate-Portable-1.1.0.zip">Portable version<small>Portable zip + .bat</small></a>
+      <a class="btn" href="https://github.com/yacineboulyali/pcmigrate-portable/releases">All releases<small>Releases</small></a>
+    </div>
+    <p class="note">⚠️ The program is not digitally signed, so Windows SmartScreen may warn you: click <b>More info</b> then <b>Run anyway</b>.</p>
+  </div>
+
+  <section><h2>How it works</h2><p class="lead">Three steps: back up the old PC, carry the package on an external disk, restore it on the new PC.</p>
+    <div class="flow"><img src="media/en/00-how-it-works.png" alt="How PC Migrate Portable works" loading="lazy"></div></section>
+
+  <section><h2>See it in action, step by step</h2><p class="lead">Animated screens showing every stage of the migration.</p>
+  <div class="steps">
+    <div class="step"><div class="txt"><span class="num">1</span><h3>Detects the old Windows and its users</h3><p>Run the program on the old PC (from Hiren's or from Windows). Windows drives and user accounts are detected automatically; choose what to move.</p><ul><li>Files: Desktop, Documents, Pictures...</li><li>Browsers: Chrome, Edge, Firefox...</li><li>Windows settings &amp; Wi-Fi</li></ul><span class="tag">Backup · old PC</span></div><div class="gif"><img src="media/en/01-detect-and-select.gif" alt="Detecting Windows and choosing what to move" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">2</span><h3>Choose programs to move with their data</h3><p>Tick <b>Programs with their files &amp; data</b>: the list of installed programs opens with size and install folder. Select what you want, then <b>OK</b>.</p><ul><li>Program files, registry and services</li><li>Shortcuts and each user's data</li></ul><span class="tag">Program chooser</span></div><div class="gif"><img src="media/en/02-choose-programs.gif" alt="Choosing programs" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">3</span><h3>Start the backup to the external disk</h3><p>Click <b>Start Backup</b>. Progress and log update live, and at the end a <code>PCMigrate_date</code> folder is ready on the disk.</p><span class="tag">Start Backup</span></div><div class="gif"><img src="media/en/03-start-backup.gif" alt="Starting the backup" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">4</span><h3>Restore files and settings on the new PC</h3><p>Open the <b>Restore</b> tab: the package is found automatically. Pick the user, then <b>Start Restore</b>. Newer files already on the new PC are kept.</p><span class="tag">Restore · new PC</span></div><div class="gif"><img src="media/en/04-restore-files.gif" alt="Restoring files and settings" loading="lazy"></div></div>
+    <div class="step"><div class="txt"><span class="num">5</span><h3>Transfer or install programs in one click</h3><p>Click <b>Install / transfer checked</b>:</p><ul><li><b>Copy from package</b>: moved from the package with its data, offline</li><li><b>winget</b>: clean download and install from the Internet</li><li>Then restart the PC ✓</li></ul><span class="tag">Programs</span></div><div class="gif"><img src="media/en/05-transfer-programs.gif" alt="Transferring and installing programs" loading="lazy"></div></div>
+  </div></section>
+
+  <section><h2>Every button explained</h2><p class="lead">Each button has a number with its explanation next to it. Click an image to enlarge it.</p>
+  <div class="shots">
+    <a class="shot" href="media/en/01-backup.png" target="_blank"><img src="media/en/01-backup.png" alt="Backup tab" loading="lazy"><div>Backup tab — old PC</div></a>
+    <a class="shot" href="media/en/02-program-chooser.png" target="_blank"><img src="media/en/02-program-chooser.png" alt="Program chooser" loading="lazy"><div>Program chooser window</div></a>
+    <a class="shot" href="media/en/03-restore.png" target="_blank"><img src="media/en/03-restore.png" alt="Restore tab" loading="lazy"><div>Restore tab — new PC</div></a>
+  </div></section>
+
+  <section><h2>Good to know</h2><div class="limits">
+    <div class="lim"><b>Browser passwords</b><p>Chrome and Edge passwords are encrypted per PC — use browser Sync. Firefox moves completely.</p></div>
+    <div class="lim"><b>Sensitive programs</b><p>Antivirus, VPN, drivers and Office / Adobe licences usually need a reinstall.</p></div>
+    <div class="lim"><b>Wi-Fi</b><p>Passwords move when the backup is taken from the running Windows; from Hiren's only network names move.</p></div>
+    <div class="lim"><b>Tip</b><p>Try it in a virtual machine first, and use an NTFS or exFAT disk.</p></div>
+  </div></section>
+</div></main>
+
+<footer><div class="wrap">PC Migrate Portable · MIT License © 2026 Yacine Boulyali · <a href="https://github.com/yacineboulyali/pcmigrate-portable">GitHub</a></div></footer>
+
+<script>
+(function(){
+  var tabs=document.querySelectorAll('.tab');
+  function show(lang){
+    if(lang!=='ar'&&lang!=='en')lang='ar';
+    tabs.forEach(function(t){var on=t.dataset.lang===lang;t.setAttribute('aria-selected',on);});
+    document.querySelectorAll('.panel').forEach(function(p){var on=p.id===lang;p.classList.toggle('on',on);p.hidden=!on;});
+    document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';
+    document.title=lang==='ar'?'PC Migrate Portable — نقل الملفات والبرامج إلى حاسوب جديد':'PC Migrate Portable — move files and programs to a new PC';
+    try{localStorage.setItem('pcm-lang',lang);}catch(e){}
+    if(location.hash!=='#'+lang)history.replaceState(null,'','#'+lang);
+  }
+  tabs.forEach(function(t){t.addEventListener('click',function(){show(t.dataset.lang);window.scrollTo({top:0,behavior:'smooth'});});});
+  var saved=null;try{saved=localStorage.getItem('pcm-lang');}catch(e){}
+  var hash=location.hash.replace('#','');
+  var nav=(navigator.language||'').toLowerCase().indexOf('ar')===0?'ar':'en';
+  show(hash==='ar'||hash==='en'?hash:(saved||nav));
+})();
+</script>
+</body>
+</html>
