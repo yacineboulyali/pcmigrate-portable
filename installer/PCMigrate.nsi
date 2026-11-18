@@ -10,9 +10,10 @@ Unicode true
 
 !include "MUI2.nsh"
 !include "x64.nsh"
+!include "LogicLib.nsh"
 
 Name "${APPNAME} ${VERSION}"
-OutFile "..\dist\PCMigrate-Setup-${VERSION}.exe"
+OutFile "..\dist\PCMigrate-Setup.exe"
 InstallDir "$PROGRAMFILES64\PCMigrate"
 InstallDirRegKey HKLM "Software\PCMigratePortable" "InstallDir"
 RequestExecutionLevel admin
@@ -28,7 +29,7 @@ VIAddVersionKey "LegalCopyright" "Yacine Boulyali - MIT License"
 !define MUI_ICON "..\src\app.ico"
 !define MUI_UNICON "..\src\app.ico"
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TEXT "This will install ${APPNAME} ${VERSION}.$\r$\n$\r$\nMove user files, browsers, Windows settings and installed programs (with their data) from an old PC to a new one.$\r$\n$\r$\nTip: the program is portable. You can also copy PCMigrate.exe to a USB stick and run it from Hiren's BootCD PE."
+!define MUI_WELCOMEPAGE_TEXT "This will install ${APPNAME} ${VERSION}.$\r$\n$\r$\nInterface: English, Français, العربية, Español (change it any time in Settings).$\r$\n$\r$\nMove user files, browsers, Windows settings and installed programs (with their data) from an old PC to a new one.$\r$\n$\r$\nTip: the program is portable. You can also copy PCMigrate.exe to a USB stick and run it from Hiren's BootCD PE."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXENAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch ${APPNAME}"
 !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\README_AR.md"
@@ -47,6 +48,7 @@ VIAddVersionKey "LegalCopyright" "Yacine Boulyali - MIT License"
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "French"
 !insertmacro MUI_LANGUAGE "Arabic"
+!insertmacro MUI_LANGUAGE "Spanish"
 !insertmacro MUI_RESERVEFILE_LANGDLL
 
 Function .onInit
@@ -66,6 +68,18 @@ Section "!${APPNAME} (required)" SecMain
   File "..\launcher\Copy-To-USB.bat"
   File "..\docs\README_AR.md"
   File /oname=LICENSE.txt "..\LICENSE"
+  ; the language chosen in the installer becomes the program's language (kept on upgrade)
+  ${IfNot} ${FileExists} "$INSTDIR\PCMigrate.ini"
+    StrCpy $0 "en"
+    ${If} $LANGUAGE == ${LANG_FRENCH}
+      StrCpy $0 "fr"
+    ${ElseIf} $LANGUAGE == ${LANG_ARABIC}
+      StrCpy $0 "ar"
+    ${ElseIf} $LANGUAGE == ${LANG_SPANISH}
+      StrCpy $0 "es"
+    ${EndIf}
+    WriteINIStr "$INSTDIR\PCMigrate.ini" "Settings" "Language" $0
+  ${EndIf}
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKLM "Software\PCMigratePortable" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "${UNINSTKEY}" "DisplayName" "${APPNAME}"
@@ -101,6 +115,7 @@ Section "Uninstall"
   Delete "$INSTDIR\Copy-To-USB.bat"
   Delete "$INSTDIR\README_AR.md"
   Delete "$INSTDIR\LICENSE.txt"
+  Delete "$INSTDIR\PCMigrate.ini"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\${APPNAME}\*.lnk"

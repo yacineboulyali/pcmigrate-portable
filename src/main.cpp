@@ -34,11 +34,20 @@
 #include <map>
 #include <set>
 #include <algorithm>
+#include "strings.h"
 
 using std::wstring;
 using std::vector;
 
-static const wchar_t* APP_TITLE = L"PC Migrate Portable 1.1";
+static const wchar_t* APP_TITLE = L"PC Migrate Portable 1.2";
+static int g_lang = L_EN;
+static const wchar_t* T(int id) { return kStrings[id][g_lang]; }
+static std::wstring W(int id) { return kStrings[id][g_lang]; }
+static const wchar_t* APP_VERSION = L"1.2.0";
+static int MsgBox(HWND h, const std::wstring& text, UINT flags) {
+    if (g_lang == L_AR) flags |= MB_RTLREADING | MB_RIGHT;
+    return MessageBoxW(h, text.c_str(), APP_TITLE, flags);
+}
 
 // ---------------------------------------------------------------------
 //  Control IDs / messages
@@ -50,7 +59,7 @@ enum {
     IDC_R_PKG = 300, IDC_R_BROWSE, IDC_R_LOAD, IDC_R_SRCUSER, IDC_R_TGT, IDC_R_FILES,
     IDC_R_BROWSERS, IDC_R_SETTINGS, IDC_R_START, IDC_R_PROGS, IDC_R_CHECKALL,
     IDC_R_UNCHECK, IDC_R_INSTALL, IDC_R_PREFWINGET,
-    IDC_B_APPS = 400, IDC_B_CHOOSE
+    IDC_B_APPS = 400, IDC_B_CHOOSE, IDC_SETTINGS
 };
 #define WM_APP_LOG      (WM_APP + 1)
 #define WM_APP_PROGRESS (WM_APP + 2)
@@ -62,7 +71,7 @@ enum {
 static HWND g_hwnd, g_tab, g_log, g_progress, g_status, g_cancelBtn;
 static HWND hBSrc, hBRefresh, hBUsers, hBFiles, hBBrowsers, hBSettings, hBPrograms, hBDest, hBBrowse, hBStart, hBGroup;
 static HWND hRPkg, hRBrowse, hRLoad, hRSrcUser, hRTgt, hRFiles, hRBrowsers, hRSettings, hRStart, hRProgs, hRCheckAll, hRUncheck, hRInstall, hRPrefWinget;
-static HWND hBApps, hBChoose;
+static HWND hBApps, hBChoose, hSettingsBtn;
 static vector<HWND> g_pageB, g_pageR;
 static HFONT g_font, g_fontBold;
 static double g_scale = 1.0;
@@ -493,9 +502,9 @@ static vector<WinInstall> DetectInstalls() {
         WinInstall w;
         w.drive = drv;
         w.live = !g_isPE && IEquals(drv, g_sysDrive);
-        w.label = Fmt(L"%ls  [%ls]  %ls total, %ls free%ls", drv.c_str(), vol[0] ? vol : L"no label",
+        w.label = Fmt(T(S_INST_LABEL), drv.c_str(), vol[0] ? vol : T(S_NOLABEL),
                       SizeStr(total.QuadPart).c_str(), SizeStr(freeB.QuadPart).c_str(),
-                      w.live ? L"   (running system)" : L"   (offline)");
+                      w.live ? T(S_RUNNING) : T(S_OFFLINE));
         out.push_back(w);
     }
     return out;
@@ -672,7 +681,7 @@ static int Permille() { return g_st && g_st->total ? (int)(g_st->done * 1000 / g
 static DWORD CALLBACK CopyProgressCb(LARGE_INTEGER, LARGE_INTEGER done, LARGE_INTEGER, LARGE_INTEGER, DWORD, DWORD, HANDLE, HANDLE, LPVOID) {
     if (g_st) {
         g_st->done = g_fileBase + done.QuadPart;
-        Report(Permille(), Fmt(L"Copying %ls / %ls  :  %ls", SizeStr(g_st->done).c_str(), SizeStr(g_st->total).c_str(), g_curFile.c_str()));
+        Report(Permille(), Fmt(T(S_ST_COPYING), SizeStr(g_st->done).c_str(), SizeStr(g_st->total).c_str(), g_curFile.c_str()));
     }
     return g_cancel ? PROGRESS_CANCEL : PROGRESS_CONTINUE;
 }
@@ -690,7 +699,7 @@ static bool BackupCopy(const wstring& src, const wstring& dst, bool openReparse 
         if (r == 0) break;
         if (!WriteFile(out, buf.data(), r, &w, nullptr) || w != r) { ok = false; break; }
         g_st->done += r;
-        Report(Permille(), Fmt(L"Copying %ls / %ls  :  %ls", SizeStr(g_st->done).c_str(), SizeStr(g_st->total).c_str(), g_curFile.c_str()));
+        Report(Permille(), Fmt(T(S_ST_COPYING), SizeStr(g_st->done).c_str(), SizeStr(g_st->total).c_str(), g_curFile.c_str()));
     }
     FILETIME c, a, m;
     if (GetFileTime(in, &c, &a, &m)) SetFileTime(out, &c, &a, &m);
@@ -742,18 +751,18 @@ static void CopyTree(const wstring& src, const wstring& dst, bool skipCaches) {
 // scan + copy a list of tasks with progress; returns false if cancelled / not enough space
 static bool RunCopyTasks(const vector<CopyTask>& tasks, const wstring& spaceCheckPath) {
     CopyStats st; g_st = &st;
-    Log(Fmt(L"Scanning %d location(s) ...", (int)tasks.size()));
-    Report(0, L"Scanning files ...", true);
+    Log(Fmt(T(S_L_SCANNING), (int)tasks.size()));
+    Report(0, T(S_ST_SCANNING), true);
     for (auto& t : tasks) {
         if (t.isFile) { WIN32_FILE_ATTRIBUTE_DATA a; if (GetFileAttributesExW(LongP(t.src).c_str(), GetFileExInfoStandard, &a)) st.total += ((ULONGLONG)a.nFileSizeHigh << 32) | a.nFileSizeLow; }
         else ScanDir(t.src, t.skipCaches, st.total);
     }
     if (g_cancel) { g_st = nullptr; return false; }
-    Log(L"Total to copy: " + SizeStr(st.total));
+    Log(Fmt(T(S_L_TOTAL), SizeStr(st.total).c_str()));
     if (!spaceCheckPath.empty()) {
         ULONGLONG fs = FreeSpace(spaceCheckPath);
         if (fs && fs < st.total + 50ull * 1024 * 1024) {
-            Log(L"ERROR: not enough free space on destination (" + SizeStr(fs) + L" free, " + SizeStr(st.total) + L" needed).");
+            Log(Fmt(T(S_L_NOSPACE), SizeStr(fs).c_str(), SizeStr(st.total).c_str()));
             g_st = nullptr; return false;
         }
     }
@@ -766,8 +775,8 @@ static bool RunCopyTasks(const vector<CopyTask>& tasks, const wstring& spaceChec
             CopyOneFile(t.src, t.dst, nullptr);
         } else CopyTree(t.src, t.dst, t.skipCaches);
     }
-    Report(1000, L"Copy finished", true);
-    Log(Fmt(L"Copied %lu file(s), %lu unchanged, %lu failed, %lu cloud-only (OneDrive placeholders) skipped.",
+    Report(1000, T(S_ST_COPYDONE), true);
+    Log(Fmt(T(S_L_COPIED),
             st.files, st.skipped, st.failed, st.cloud));
     g_st = nullptr;
     return !g_cancel;
@@ -949,10 +958,10 @@ static void EnumApps(HKEY base, const wchar_t* sub, const wchar_t* scope, const 
         if (RegDword(k, name, L"WindowsInstaller") == 1) a.note = L"MSI";
         if (!a.installDir.empty()) {
             a.srcDir = MapToSource(a.installDir, srcDrive, live);
-            if (!IsDir(a.srcDir)) { a.note += a.note.empty() ? L"" : L", "; a.note += L"install folder not found - data only"; a.installDir.clear(); a.srcDir.clear(); }
+            if (!IsDir(a.srcDir)) { a.note += a.note.empty() ? L"" : L", "; a.note += T(S_NOTE_NOTFOUND); a.installDir.clear(); a.srcDir.clear(); }
         } else {
             a.note += a.note.empty() ? L"" : L", ";
-            a.note += L"no install folder - data only";
+            a.note += T(S_NOTE_NOFOLDER);
         }
         out.push_back(a);
     }
@@ -1009,7 +1018,7 @@ static void BackupWiFi(const BackupJob& j, const wstring& pkg) {
         DWORD ec = 1;
         RunProcess(L"\"" + SysExe(L"netsh.exe") + L"\" wlan export profile key=clear folder=\"" + dir + L"\"", &ec, 60000);
         for (auto& fd : ListDir(dir)) if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) count++;
-        if (count) { Log(Fmt(L"  Wi-Fi: %d profile(s) exported with passwords.", count)); return; }
+        if (count) { Log(Fmt(T(S_L_WIFI_EXP), count)); return; }
     }
     wstring base = j.srcDrive + L"\\ProgramData\\Microsoft\\Wlansvc\\Profiles\\Interfaces";
     int idx = 0;
@@ -1022,21 +1031,21 @@ static void BackupWiFi(const BackupJob& j, const wstring& pkg) {
             if (CopyFileW(LongP(Join(Join(base, itf.cFileName), n)).c_str(), LongP(Join(dir, Fmt(L"if%d_", idx) + n)).c_str(), FALSE)) count++;
         }
     }
-    Log(Fmt(L"  Wi-Fi: %d profile(s) copied (offline: passwords are encrypted per-PC and must be re-typed).", count));
+    Log(Fmt(T(S_L_WIFI_COPY), count));
 }
 static DWORD WINAPI BackupThread(LPVOID p) {
     BackupJob* j = (BackupJob*)p;
     wstring pkg = Join(j->destRoot, L"PCMigrate_" + TimeStamp(true));
     bool ok = MakeDirs(pkg);
-    if (!ok) { Log(L"ERROR: cannot create package folder " + pkg + L" : " + ErrText(GetLastError())); PostMessageW(g_hwnd, WM_APP_DONE, 0, 0); delete j; return 0; }
+    if (!ok) { Log(Fmt(T(S_L_ERR_PKGDIR), pkg.c_str(), ErrText(GetLastError()).c_str())); PostMessageW(g_hwnd, WM_APP_DONE, 0, 0); delete j; return 0; }
     OpenLogFile(Join(pkg, L"backup.log"));
-    Log(L"===== BACKUP started " + TimeStamp(false) + L" =====");
+    Log(Fmt(T(S_L_B_STARTED), TimeStamp(false).c_str()));
     {
         wchar_t fs[32] = L""; wstring root = j->destRoot.substr(0, 2) + L"\\";
         if (GetVolumeInformationW(root.c_str(), nullptr, 0, nullptr, nullptr, nullptr, fs, 32) && _wcsicmp(fs, L"NTFS") && _wcsicmp(fs, L"exFAT") && _wcsicmp(fs, L"ReFS"))
-            Log(wstring(L"WARNING: destination is ") + fs + L" - files bigger than 4 GB cannot be copied. Prefer an NTFS or exFAT disk.");
+            Log(Fmt(T(S_L_FAT), fs));
     }
-    Log(L"Source Windows: " + j->srcDrive + (j->live ? L" (running system)" : L" (offline)") + L"   Package: " + pkg);
+    Log(Fmt(T(S_L_SOURCE), j->srcDrive.c_str(), j->live ? T(S_RUNNING) : T(S_OFFLINE), pkg.c_str()));
 
     vector<CopyTask> tasks;
     std::map<wstring, Program> progs;
@@ -1048,8 +1057,8 @@ static DWORD WINAPI BackupThread(LPVOID p) {
     wstring softShort = L"HKLM\\SOFTWARE";
     Repl softRepl;
     if ((j->programs || doApps) && !g_cancel) {
-        Log(L"Reading installed programs ...");
-        Report(0, L"Reading installed programs ...", true);
+        Log(W(S_ST_READPROGS));
+        Report(0, T(S_ST_READPROGS), true);
         if (j->live) RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE", 0, KEY_READ | KEY_WOW64_64KEY, &soft);
         else {
             LONG r = RegLoadKeyW(HKEY_LOCAL_MACHINE, L"PCMIG_SOFT", (j->srcDrive + L"\\Windows\\System32\\config\\SOFTWARE").c_str());
@@ -1092,7 +1101,7 @@ static DWORD WINAPI BackupThread(LPVOID p) {
         userNames.push_back(uname);
         wstring udir = pkg + L"\\Users\\" + uname;
         MakeDirs(udir);
-        Log(L"User: " + uname);
+        Log(Fmt(T(S_L_USER), uname.c_str()));
         if (j->files) {
             for (auto& f : kFolders) {
                 wstring s = Join(prof, f.name);
@@ -1106,9 +1115,9 @@ static DWORD WINAPI BackupThread(LPVOID p) {
         if (j->browsers) {
             for (auto& b : kBrowsers) {
                 wstring s = Join(prof, b.rel);
-                if (IsDir(s)) { tasks.push_back({s, udir + L"\\Browsers\\" + b.name, false, true}); Log(wstring(L"  browser found: ") + b.name); }
+                if (IsDir(s)) { tasks.push_back({s, udir + L"\\Browsers\\" + b.name, false, true}); Log(Fmt(T(S_L_BROWSER_FOUND), b.name)); }
             }
-            if (j->live) for (auto& b : kBrowsers) if (IsProcessRunning(b.exe)) Log(wstring(L"  ! ") + b.exe + L" is running - close it for a consistent copy.");
+            if (j->live) for (auto& b : kBrowsers) if (IsProcessRunning(b.exe)) Log(Fmt(T(S_L_BROWSER_RUNNING), b.exe));
         }
         if (j->settings || j->programs || doApps) {
             Hive h;
@@ -1120,7 +1129,7 @@ static DWORD WINAPI BackupThread(LPVOID p) {
                     for (auto key : kUserRegKeys) {
                         if (ExportUserKey(h, key, Join(sdir, Fmt(L"%02d.reg", ++k)))) n++;
                     }
-                    Log(Fmt(L"  settings: %d registry key(s) exported.", n));
+                    Log(Fmt(T(S_L_SETTINGS_EXP), n));
                     // wallpaper
                     wstring wp = Join(prof, WALLPAPER_REL);
                     if (IsFile(wp)) {
@@ -1163,7 +1172,7 @@ static DWORD WINAPI BackupThread(LPVOID p) {
                     if (a.scope == L"user" && ExportUserKey(h, a.uninstallSub, ud + L"\\Reg\\uninstall.reg")) nr++;
                 }
                 MakeDirs(ud);
-                Log(Fmt(L"  program data '%ls': %d folder(s), %d registry key(s)", a.name.c_str(), nd, nr));
+                Log(Fmt(T(S_L_APPDATA), a.name.c_str(), nd, nr));
             }
             if (h.base || h.loaded) CloseHive(h);
         }
@@ -1174,7 +1183,7 @@ static DWORD WINAPI BackupThread(LPVOID p) {
         if (g_cancel) break;
         wstring adir = pkg + L"\\Apps\\" + a.pkgName;
         AppNames nm = Candidates(a);
-        Log(L"Program: " + a.name + (a.installDir.empty() ? L"  (data only)" : L"  [" + a.installDir + L"]"));
+        Log(Fmt(T(S_L_PROGRAM), a.name.c_str(), (a.installDir.empty() ? W(S_L_DATAONLY) : L"  [" + a.installDir + L"]").c_str()));
         if (!a.srcDir.empty() && IsDir(a.srcDir)) tasks.push_back({a.srcDir, adir + L"\\Files", false, false});
         std::set<wstring> seenDirs;
         for (auto& c : nm.cands) {
@@ -1221,9 +1230,9 @@ static DWORD WINAPI BackupThread(LPVOID p) {
                     wstring img = Lower(RegStr(sv, kn, L"ImagePath"));
                     if (img.find(dirL) == wstring::npos) continue;
                     DWORD type = RegDword(sv, kn, L"Type");
-                    if ((type & 0x0F) && !(type & 0x30)) { ndrv++; Log(wstring(L"  ! kernel driver not transferable: ") + kn); continue; }
+                    if ((type & 0x0F) && !(type & 0x30)) { ndrv++; Log(Fmt(T(S_L_DRIVER), kn)); continue; }
                     MakeDirs(adir + L"\\Reg");
-                    if (ExportKey(sv, kn, sysShort + L"\\Services", sysRepl, adir + L"\\Reg\\svc_" + SafeName(kn) + L".reg")) { nsvc++; Log(wstring(L"  service: ") + kn); }
+                    if (ExportKey(sv, kn, sysShort + L"\\Services", sysRepl, adir + L"\\Reg\\svc_" + SafeName(kn) + L".reg")) { nsvc++; Log(Fmt(T(S_L_SERVICE), kn)); }
                 }
                 RegCloseKey(sv);
             }
@@ -1238,7 +1247,7 @@ static DWORD WINAPI BackupThread(LPVOID p) {
         WritePrivateProfileStringW(L"App", L"Services", Fmt(L"%d", nsvc).c_str(), ini.c_str());
         WritePrivateProfileStringW(L"App", L"Drivers", Fmt(L"%d", ndrv).c_str(), ini.c_str());
         WritePrivateProfileStringW(L"App", L"Note", a.note.c_str(), ini.c_str());
-        Log(Fmt(L"  %d machine registry key(s), %d service(s)%ls", nr, nsvc, ndrv ? L"  - has drivers: reinstall recommended" : L""));
+        Log(Fmt(T(S_L_APPSUM), nr, nsvc, ndrv ? T(S_L_HASDRV) : L""));
     }
     if (soft) RegCloseKey(soft);
     if (softLoaded) { Hive tmp; tmp.loaded = true; tmp.mount = L"PCMIG_SOFT"; CloseHive(tmp, HKEY_LOCAL_MACHINE); }
@@ -1253,7 +1262,7 @@ static DWORD WINAPI BackupThread(LPVOID p) {
         std::sort(v.begin(), v.end(), [](const Program& a, const Program& b) { return _wcsicmp(a.name.c_str(), b.name.c_str()) < 0; });
         for (auto& pr : v) txt += pr.name + L"\t" + pr.version + L"\t" + pr.publisher + L"\t" + pr.scope + L"\r\n";
         WriteUtf8(Join(pkg, L"programs.txt"), txt, true);
-        Log(Fmt(L"Programs: %d found, list saved to programs.txt", (int)v.size()));
+        Log(Fmt(T(S_L_PROGLIST), (int)v.size()));
     }
 
     // manifest
@@ -1265,12 +1274,12 @@ static DWORD WINAPI BackupThread(LPVOID p) {
     WritePrivateProfileStringW(L"Package", L"Users", users.c_str(), man.c_str());
 
     bool copied = !g_cancel && RunCopyTasks(tasks, j->destRoot);
-    if (g_cancel) Log(L"===== BACKUP CANCELLED =====");
-    else if (!copied) Log(L"===== BACKUP FAILED =====");
+    if (g_cancel) Log(W(S_L_B_CANCEL));
+    else if (!copied) Log(W(S_L_B_FAIL));
     else {
-        Log(L"===== BACKUP FINISHED " + TimeStamp(false) + L" =====");
-        Log(L"Package ready: " + pkg);
-        Log(L"Next: plug this disk into the NEW PC, run PCMigrate.exe there, tab 2 'Restore'.");
+        Log(Fmt(T(S_L_B_DONE), TimeStamp(false).c_str()));
+        Log(Fmt(T(S_L_PKG_READY), pkg.c_str()));
+        Log(W(S_L_NEXT));
     }
     CloseLogFile();
     PostMessageW(g_hwnd, WM_APP_DONE, 0, 0);
@@ -1292,7 +1301,7 @@ static wstring KnownFolder(const KNOWNFOLDERID& id) {
 static void RestoreWiFi(const wstring& pkg) {
     wstring dir = pkg + L"\\System\\WiFi";
     if (!IsDir(dir)) return;
-    if (g_isPE) { Log(L"Wi-Fi: skipped (Wi-Fi profiles can only be imported from a running Windows)."); return; }
+    if (g_isPE) { Log(W(S_L_WIFI_SKIP_PE)); return; }
     wchar_t tmpDir[MAX_PATH]; GetTempPathW(MAX_PATH, tmpDir);
     int ok = 0, total = 0;
     for (auto& fd : ListDir(dir)) {
@@ -1311,13 +1320,13 @@ static void RestoreWiFi(const wstring& pkg) {
         if (RunProcess(L"\"" + SysExe(L"netsh.exe") + L"\" wlan add profile filename=\"" + use + L"\" user=all", &ec, 30000) && ec == 0) ok++;
         else Log(wstring(L"  ! Wi-Fi profile not added: ") + fd.cFileName);
     }
-    Log(Fmt(L"Wi-Fi: %d / %d profile(s) imported.", ok, total));
+    Log(Fmt(T(S_L_WIFI_IMP), ok, total));
 }
 static DWORD WINAPI RestoreThread(LPVOID p) {
     RestoreJob* j = (RestoreJob*)p;
     OpenLogFile(Join(j->pkg, L"restore.log"));
-    Log(L"===== RESTORE started " + TimeStamp(false) + L" =====");
-    Log(L"Package: " + j->pkg + L"   user: " + j->srcUser + L"  ->  " + j->tgtProfile);
+    Log(Fmt(T(S_L_R_STARTED), TimeStamp(false).c_str()));
+    Log(Fmt(T(S_L_R_PKG), j->pkg.c_str(), j->srcUser.c_str(), j->tgtProfile.c_str()));
     wstring src = j->pkg + L"\\Users\\" + j->srcUser;
     wstring tgt = j->tgtProfile;
     bool liveUser = !g_isPE && IEquals(StripSlash(tgt), StripSlash(Env(L"USERPROFILE")));
@@ -1338,23 +1347,23 @@ static DWORD WINAPI RestoreThread(LPVOID p) {
             wstring s = src + L"\\Browsers\\" + b.name;
             if (!IsDir(s)) continue;
             if (liveSystem && IsProcessRunning(b.exe)) {
-                Log(wstring(L"  ! ") + b.name + L" skipped: " + b.exe + L" is running. Close it (for Edge also disable 'Startup boost') and restore again.");
+                Log(Fmt(T(S_L_BROWSER_SKIP), b.name, b.exe));
                 continue;
             }
             wstring d = Join(tgt, b.rel);
             if (IsDir(d)) {
                 wstring bak = d + L".bak_" + TimeStamp(true);
-                if (MoveFileExW(LongP(d).c_str(), LongP(bak).c_str(), 0)) Log(L"  existing profile kept as " + bak);
+                if (MoveFileExW(LongP(d).c_str(), LongP(bak).c_str(), 0)) Log(Fmt(T(S_L_KEPT), bak.c_str()));
             }
             tasks.push_back({s, d, false, false});
-            Log(wstring(L"  browser: ") + b.name);
+            Log(Fmt(T(S_L_BROWSER), b.name));
         }
-        Log(L"  note: saved passwords/cookies of Chrome/Edge/Brave/Opera are encrypted per-PC; use browser sync or password export for those.");
+        Log(W(S_L_PWNOTE));
     }
     bool copied = RunCopyTasks(tasks, L"");
 
     if (j->settings && !g_cancel && IsDir(src + L"\\Settings")) {
-        Log(L"Applying Windows settings ...");
+        Log(W(S_L_APPLY));
         wstring sdir = src + L"\\Settings";
         Hive h;
         if (OpenUserHive(tgt, L"PCMIG_TGT", true, h)) {
@@ -1363,7 +1372,7 @@ static DWORD WINAPI RestoreThread(LPVOID p) {
                 wstring n = fd.cFileName;
                 if (n.size() > 4 && IEquals(n.substr(n.size() - 4), L".reg")) { total++; if (ImportUserReg(h, Join(sdir, n))) ok++; }
             }
-            Log(Fmt(L"  registry: %d / %d key file(s) imported.", ok, total));
+            Log(Fmt(T(S_L_REGIMP), ok, total));
             // wallpaper
             wstring wpSrc = Join(sdir, L"wallpaper.jpg");
             if (IsFile(wpSrc)) {
@@ -1384,7 +1393,7 @@ static DWORD WINAPI RestoreThread(LPVOID p) {
                         RegCloseKey(k);
                     }
                     if (liveUser) SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, (PVOID)wpDst.c_str(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
-                    Log(L"  wallpaper restored.");
+                    Log(W(S_L_WALL));
                 }
             }
             CloseHive(h);
@@ -1393,16 +1402,16 @@ static DWORD WINAPI RestoreThread(LPVOID p) {
         if (IsFile(qa)) {
             wstring d = Join(tgt, QUICK_ACCESS_REL);
             size_t pp = d.find_last_of(L'\\'); MakeDirs(d.substr(0, pp));
-            if (CopyFileW(LongP(qa).c_str(), LongP(d).c_str(), FALSE)) Log(L"  Quick Access pins restored.");
+            if (CopyFileW(LongP(qa).c_str(), LongP(d).c_str(), FALSE)) Log(W(S_L_QA));
         }
         RestoreWiFi(j->pkg);
     }
 
-    if (g_cancel) Log(L"===== RESTORE CANCELLED =====");
+    if (g_cancel) Log(W(S_L_R_CANCEL));
     else {
-        Log(L"===== RESTORE FINISHED " + TimeStamp(false) + L" =====");
-        if (copied) Log(L"Sign out and sign in again (or restart) so all settings take effect.");
-        Log(L"Programs: use the list below to reinstall them with winget.");
+        Log(Fmt(T(S_L_R_DONE), TimeStamp(false).c_str()));
+        if (copied) Log(W(S_L_SIGNOUT));
+        Log(W(S_L_USELIST));
     }
     CloseLogFile();
     PostMessageW(g_hwnd, WM_APP_DONE, 0, 0);
@@ -1466,7 +1475,7 @@ static bool TransferApp(const ProgItem& it, bool full, TransferCtx& c) {
         if (!oldUser.empty() && (IStarts(logical, up + L"\\") || IEquals(logical, up))) return c.tgtProfile + logical.substr(up.size());
         return c.tgtSysDrive + logical.substr(2);
     };
-    Log(L"Transferring " + it.name + (full ? L"  (files + registry + data)" : L"  (data / settings only)"));
+    Log(Fmt(T(S_L_TRANSFER), it.name.c_str(), full ? T(S_L_FULL) : T(S_L_DATAONLY2)));
     vector<CopyTask> tasks;
     if (full) {
         if (!installDir.empty() && IsDir(adir + L"\\Files")) {
@@ -1514,32 +1523,31 @@ static bool TransferApp(const ProgItem& it, bool full, TransferCtx& c) {
             if (ImportReg(ud + L"\\Reg\\" + n, r)) nu++; else fail++;
         }
     }
-    Log(Fmt(L"  registry: %d machine + %d user key file(s) imported%ls", nm, nu, fail ? Fmt(L", %d failed", fail).c_str() : L""));
+    Log(Fmt(T(S_L_REGSUM), nm, nu, fail ? Fmt(T(S_L_FAILED_N), fail).c_str() : L""));
     GetPrivateProfileStringW(L"App", L"Drivers", L"0", buf, 1024, ini.c_str());
-    if (full && _wtoi(buf) > 0) Log(L"  ! this program uses drivers - if it does not work, reinstall it (your data is already restored).");
+    if (full && _wtoi(buf) > 0) Log(W(S_L_DRVWARN));
     return ok;
 }
 static bool WingetInstall(const ProgItem& it) {
     wstring cmd = L"winget install ";
     cmd += it.id.empty() ? (L"--name \"" + CleanName(it.name) + L"\"") : (L"--id " + it.id + L" -e");
     cmd += L" --silent --accept-package-agreements --accept-source-agreements --disable-interactivity";
-    Log(L"winget: installing " + it.name + L"  (" + (it.id.empty() ? L"by name" : it.id) + L") ...");
+    Log(Fmt(T(S_L_WG_INSTALL), it.name.c_str(), it.id.empty() ? T(S_L_BYNAME) : it.id.c_str()));
     DWORD ec = 1;
     RunProcess(cmd, &ec);
-    if (ec == 0) { Log(L"  OK"); return true; }
-    if (ec == 0x8A15002B || ec == 0x8A150061) { Log(L"  already installed"); return true; }
-    if (ec == 0x8A150014) Log(L"  ! no package found in winget");
-    else Log(Fmt(L"  ! failed (code 0x%08lX)", ec));
+    if (ec == 0) { Log(W(S_L_OK)); return true; }
+    if (ec == 0x8A15002B || ec == 0x8A150061) { Log(W(S_L_ALREADY)); return true; }
+    if (ec == 0x8A150014) Log(W(S_L_NOPKG));
+    else Log(Fmt(T(S_L_WG_FAIL), ec));
     return false;
 }
 static DWORD WINAPI InstallThread(LPVOID p) {
     InstallJob* j = (InstallJob*)p;
     if (!j->pkg.empty()) OpenLogFile(Join(j->pkg, L"restore.log"));
-    Log(L"===== PROGRAMS started " + TimeStamp(false) + L" =====");
+    Log(Fmt(T(S_L_P_STARTED), TimeStamp(false).c_str()));
     DWORD ec = 0;
     bool wingetOk = !g_isPE && RunProcess(L"winget --version", &ec, 30000) && ec == 0;
-    if (!wingetOk) Log(g_isPE ? L"WinPE: winget is not available - only programs saved in the package can be transferred."
-                              : L"winget not found (install 'App Installer' from Microsoft Store) - only programs saved in the package can be transferred.");
+    if (!wingetOk) Log(g_isPE ? W(S_L_NOWG_PE) : W(S_L_NOWG));
     TransferCtx c;
     c.pkg = j->pkg; c.tgtProfile = j->tgtProfile; c.srcUser = j->srcUser; c.newUser = FileName(j->tgtProfile);
     c.liveSystem = !g_isPE && IEquals(DriveOf(j->tgtProfile), DriveOf(g_sysDrive));
@@ -1552,7 +1560,7 @@ static DWORD WINAPI InstallThread(LPVOID p) {
     for (auto& it : j->items) {
         if (g_cancel) break;
         n++;
-        Report(0, Fmt(L"Program %d/%d : %ls", n, total, it.name.c_str()), true);
+        Report(0, Fmt(T(S_ST_PROGRAM), n, total, it.name.c_str()), true);
         bool usePkg = !it.pkgDir.empty();
         bool viaWinget = wingetOk && (!usePkg || (j->preferWinget && !it.id.empty()));
         bool r = false;
@@ -1562,16 +1570,16 @@ static DWORD WINAPI InstallThread(LPVOID p) {
         } else if (usePkg) {
             r = TransferApp(it, true, c);
         } else {
-            Log(L"Skipped " + it.name + L" (needs winget)");
+            Log(Fmt(T(S_L_SKIPPED), it.name.c_str()));
         }
         if (r) ok++;
     }
     if (c.userOk) CloseHive(c.user);
     CloseTargetMachine(c);
-    Log(Fmt(L"===== PROGRAMS finished: %d / %d OK =====", ok, n));
-    if (c.services) Log(L"Services were registered: RESTART the PC so they start.");
-    if (anyPkg) Log(L"Transferred programs appear in the Start menu. Sign out / restart if a shortcut or setting is missing.");
-    Report(1000, L"Done", true);
+    Log(Fmt(T(S_L_P_DONE), ok, n));
+    if (c.services) Log(W(S_L_RESTART));
+    if (anyPkg) Log(W(S_L_STARTMENU));
+    Report(1000, T(S_ST_DONE), true);
     CloseLogFile();
     PostMessageW(g_hwnd, WM_APP_DONE, 0, 0);
     delete j;
@@ -1611,7 +1619,7 @@ static void AppendLog(const wstring& s) {
 }
 static void SetBusy(bool busy) {
     g_busy = busy;
-    HWND toggle[] = {hBStart, hBRefresh, hBBrowse, hBSrc, hBChoose, hRStart, hRLoad, hRBrowse, hRInstall, g_tab};
+    HWND toggle[] = {hBStart, hBRefresh, hBBrowse, hBSrc, hBChoose, hRStart, hRLoad, hRBrowse, hRInstall, g_tab, hSettingsBtn};
     for (auto h : toggle) EnableWindow(h, !busy);
     EnableWindow(g_cancelBtn, busy);
     if (busy) { g_cancel = FALSE; SendMessageW(g_progress, PBM_SETPOS, 0, 0); }
@@ -1668,8 +1676,8 @@ static void RefreshInstalls() {
     SendMessageW(hBSrc, CB_SETCURSEL, sel, 0);
     FillUsers();
     if (sel >= 0 && GetText(hBDest).empty()) SetWindowTextW(hBDest, SuggestDest(g_installs[sel].drive).c_str());
-    if (g_installs.empty()) Log(L"No Windows installation with user profiles found. (BitLocker drives must be unlocked first.)");
-    else Log(Fmt(L"Found %d Windows installation(s).", (int)g_installs.size()));
+    if (g_installs.empty()) Log(W(S_L_NOWIN));
+    else Log(Fmt(T(S_L_FOUND), (int)g_installs.size()));
 
     // restore targets
     g_tgtProfiles.clear();
@@ -1680,7 +1688,7 @@ static void RefreshInstalls() {
         for (auto& p : EnumProfiles(w.drive)) {
             if (!g_isPE && IEquals(p, me)) meIdx = (int)g_tgtProfiles.size();
             g_tgtProfiles.push_back(p);
-            wstring lbl = p + ((!g_isPE && IEquals(p, me)) ? L"   (you - current user)" : L"");
+            wstring lbl = p + ((!g_isPE && IEquals(p, me)) ? T(S_YOU) : L"");
             SendMessageW(hRTgt, CB_ADDSTRING, 0, (LPARAM)lbl.c_str());
         }
     SendMessageW(hRTgt, CB_SETCURSEL, meIdx >= 0 ? meIdx : 0, 0);
@@ -1694,7 +1702,7 @@ static vector<wstring> CheckedProfiles() {
 }
 static void UpdateAppsLabel() {
     int n = 0; for (auto& a : g_srcApps) if (a.selected) n++;
-    SetWindowTextW(hBApps, Fmt(L"Programs with their files && data  (%d selected)", n).c_str());
+    SetWindowTextW(hBApps, Fmt(T(S_B_APPS_FMT), n).c_str());
 }
 static bool LoadSourceApps() {
     int sel = (int)SendMessageW(hBSrc, CB_GETCURSEL, 0, 0);
@@ -1747,23 +1755,22 @@ static LRESULT CALLBACK ChooserProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
             SendMessageW(c, WM_SETFONT, (WPARAM)g_font, TRUE);
             return c;
         };
-        mk(L"STATIC", L"Select the programs to move WITH their files, registry, services, shortcuts and user data.\n"
-                      L"Best for normal desktop programs. Antivirus, VPN, drivers and hardware-locked licences usually need a reinstall.",
+        mk(L"STATIC", T(S_CH_INTRO),
            0, 12, 8, 816, 38, -1);
         g_chLv = mk(WC_LISTVIEWW, L"", LVS_REPORT | LVS_SHOWSELALWAYS | WS_TABSTOP, 12, 50, 816, 400, 10, WS_EX_CLIENTEDGE);
         ListView_SetExtendedListViewStyle(g_chLv, LVS_EX_CHECKBOXES | LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
-        AddColumn(g_chLv, 0, L"Program", 270); AddColumn(g_chLv, 1, L"Version", 90);
-        AddColumn(g_chLv, 2, L"Size", 75); AddColumn(g_chLv, 3, L"Install folder / notes", 355);
+        AddColumn(g_chLv, 0, T(S_COL_PROGRAM), 270); AddColumn(g_chLv, 1, T(S_COL_VERSION), 90);
+        AddColumn(g_chLv, 2, T(S_COL_SIZE), 75); AddColumn(g_chLv, 3, T(S_COL_INSTALL), 355);
         for (size_t i = 0; i < g_srcApps.size(); ++i) {
             auto& a = g_srcApps[i];
             wstring info = a.installDir.empty() ? a.note : a.installDir + (a.note.empty() ? L"" : L"   (" + a.note + L")");
-            if (a.scope == L"user") info += L"   [user: " + FileName(a.owner) + L"]";
+            if (a.scope == L"user") info += Fmt(T(S_USER_TAG), FileName(a.owner).c_str());
             LvAdd(g_chLv, {a.name, a.version, a.sizeKB ? SizeStr((ULONGLONG)a.sizeKB * 1024) : L"", info}, (LPARAM)i, a.selected);
         }
-        mk(L"BUTTON", L"Select all", WS_TABSTOP, 12, 460, 100, 30, 11);
-        mk(L"BUTTON", L"Select none", WS_TABSTOP, 120, 460, 100, 30, 12);
-        mk(L"BUTTON", L"OK", BS_DEFPUSHBUTTON | WS_TABSTOP, 628, 460, 96, 30, IDOK);
-        mk(L"BUTTON", L"Cancel", WS_TABSTOP, 732, 460, 96, 30, IDCANCEL);
+        mk(L"BUTTON", T(S_SELECT_ALL), WS_TABSTOP, 12, 460, 100, 30, 11);
+        mk(L"BUTTON", T(S_SELECT_NONE), WS_TABSTOP, 120, 460, 100, 30, 12);
+        mk(L"BUTTON", T(S_BTN_OK), BS_DEFPUSHBUTTON | WS_TABSTOP, 628, 460, 96, 30, IDOK);
+        mk(L"BUTTON", T(S_CANCEL), WS_TABSTOP, 732, 460, 96, 30, IDCANCEL);
         return 0;
     }
     case WM_COMMAND:
@@ -1789,8 +1796,8 @@ static LRESULT CALLBACK ChooserProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(h, m, wp, lp);
 }
 static void ShowChooser() {
-    if (!LoadSourceApps()) { MessageBoxW(g_hwnd, L"Select the source Windows installation first.", APP_TITLE, MB_ICONWARNING); return; }
-    if (g_srcApps.empty()) { MessageBoxW(g_hwnd, L"No programs found on the source Windows.", APP_TITLE, MB_ICONINFORMATION); return; }
+    if (!LoadSourceApps()) { MsgBox(g_hwnd, T(S_MB_SELECT_SRC), MB_ICONWARNING); return; }
+    if (g_srcApps.empty()) { MsgBox(g_hwnd, T(S_MB_NO_PROGS), MB_ICONINFORMATION); return; }
     static bool reg = false;
     if (!reg) {
         WNDCLASSEXW wc{sizeof(wc)};
@@ -1806,7 +1813,7 @@ static void ShowChooser() {
     int x = pr.left + ((pr.right - pr.left) - w) / 2, y = pr.top + ((pr.bottom - pr.top) - hh) / 2;
     g_chDone = false;
     EnableWindow(g_hwnd, FALSE);
-    g_chooser = CreateWindowExW(WS_EX_DLGMODALFRAME, L"PCMigrateChooser", L"Choose programs to transfer with their data", style | WS_VISIBLE,
+    g_chooser = CreateWindowExW(WS_EX_DLGMODALFRAME | (g_lang == L_AR ? WS_EX_LAYOUTRTL : 0), L"PCMigrateChooser", T(S_CH_TITLE), style | WS_VISIBLE,
                                 x < 0 ? 0 : x, y < 0 ? 0 : y, w, hh, g_hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
     MSG msg;
     while (!g_chDone && GetMessageW(&msg, nullptr, 0, 0)) {
@@ -1821,7 +1828,7 @@ static void ShowChooser() {
 }
 static void StartBackup() {
     int sel = (int)SendMessageW(hBSrc, CB_GETCURSEL, 0, 0);
-    if (sel < 0) { MessageBoxW(g_hwnd, L"Select the source Windows installation.", APP_TITLE, MB_ICONWARNING); return; }
+    if (sel < 0) { MsgBox(g_hwnd, T(S_MB_SELECT_SRC), MB_ICONWARNING); return; }
     BackupJob* j = new BackupJob();
     j->srcDrive = g_installs[sel].drive; j->live = g_installs[sel].live;
     wchar_t buf[MAX_PATH * 2];
@@ -1846,14 +1853,14 @@ static void StartBackup() {
         }
     }
     wstring err;
-    if (j->profiles.empty() && (j->files || j->browsers || j->settings)) err = L"Select at least one user profile.";
-    else if (!j->files && !j->browsers && !j->settings && !j->programs && j->apps.empty()) err = L"Select at least one thing to transfer.";
-    else if (wantApps && j->apps.empty()) err = L"'Programs with their files & data' is checked but no program is selected.\nClick 'Choose...' to select them.";
-    else if (j->destRoot.size() < 2 || j->destRoot[1] != L':') err = L"Choose a destination folder (external disk / USB), e.g. E:\\";
-    else if (!MakeDirs(j->destRoot)) err = L"Destination folder is not accessible.";
+    if (j->profiles.empty() && (j->files || j->browsers || j->settings)) err = T(S_ERR_PROFILE);
+    else if (!j->files && !j->browsers && !j->settings && !j->programs && j->apps.empty()) err = T(S_ERR_NOTHING);
+    else if (wantApps && j->apps.empty()) err = T(S_ERR_NOAPPS);
+    else if (j->destRoot.size() < 2 || j->destRoot[1] != L':') err = T(S_ERR_DEST);
+    else if (!MakeDirs(j->destRoot)) err = T(S_ERR_DEST_ACCESS);
     else if (IEquals(DriveOf(j->destRoot), DriveOf(j->srcDrive)))
-        err = L"The destination is on the same drive as the source Windows.\nUse an external disk/USB (or another partition).";
-    if (!err.empty()) { MessageBoxW(g_hwnd, err.c_str(), APP_TITLE, MB_ICONWARNING); delete j; return; }
+        err = T(S_ERR_SAMEDRIVE);
+    if (!err.empty()) { MsgBox(g_hwnd, err.c_str(), MB_ICONWARNING); delete j; return; }
     SetBusy(true);
     CloseHandle(CreateThread(nullptr, 0, BackupThread, j, 0, nullptr));
 }
@@ -1864,7 +1871,7 @@ static void LoadPackage() {
     SendMessageW(hRSrcUser, CB_RESETCONTENT, 0, 0);
     ListView_DeleteAllItems(hRProgs);
     g_progs.clear();
-    if (!IsFile(Join(pkg, L"manifest.ini"))) { Log(L"Not a migration package (manifest.ini missing): " + pkg); return; }
+    if (!IsFile(Join(pkg, L"manifest.ini"))) { Log(Fmt(T(S_L_NOTPKG), pkg.c_str())); return; }
     int nu = 0;
     for (auto& fd : ListDir(pkg + L"\\Users"))
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { SendMessageW(hRSrcUser, CB_ADDSTRING, 0, (LPARAM)fd.cFileName); nu++; }
@@ -1902,13 +1909,13 @@ static void LoadPackage() {
     std::stable_sort(g_progs.begin(), g_progs.end(), [&](const ProgItem& a, const ProgItem& b) { return rank(a) < rank(b); });
     for (size_t i = 0; i < g_progs.size(); ++i) {
         auto& pr = g_progs[i];
-        wstring how = !pr.pkgDir.empty() ? (pr.id.empty() ? L"Copy from package (files + data)" : L"Copy from package  |  or winget: " + pr.id)
-                                         : (pr.id.empty() ? L"winget: search by name" : L"winget: " + pr.id);
+        wstring how = !pr.pkgDir.empty() ? (pr.id.empty() ? W(S_M_COPY) : Fmt(T(S_M_COPY_OR), pr.id.c_str()))
+                                         : (pr.id.empty() ? W(S_M_WINGET_NAME) : Fmt(T(S_M_WINGET), pr.id.c_str()));
         LvAdd(hRProgs, {pr.name, pr.version, how}, (LPARAM)i, rank(pr) < 2);
     }
     wchar_t created[64] = L"";
     GetPrivateProfileStringW(L"Package", L"Created", L"?", created, 64, Join(pkg, L"manifest.ini").c_str());
-    Log(Fmt(L"Package loaded (created %ls): %d user(s), %d program(s), %d saved with files + data.", created, nu, (int)g_progs.size(), napps));
+    Log(Fmt(T(S_L_PKGLOADED), created, nu, (int)g_progs.size(), napps));
 }
 static void AutoFindPackage() {
     wstring best;
@@ -1936,14 +1943,13 @@ static void StartRestore() {
     j->browsers = SendMessageW(hRBrowsers, BM_GETCHECK, 0, 0) == BST_CHECKED;
     j->settings = SendMessageW(hRSettings, BM_GETCHECK, 0, 0) == BST_CHECKED;
     wstring err;
-    if (!IsFile(Join(j->pkg, L"manifest.ini"))) err = L"Choose a valid migration package folder (PCMigrate_xxxx) and click Load.";
-    else if (j->srcUser.empty()) err = L"The package contains no user.";
-    else if (j->tgtProfile.empty()) err = L"Choose the target profile.";
-    else if (!j->files && !j->browsers && !j->settings) err = L"Select at least one thing to restore.";
-    if (!err.empty()) { MessageBoxW(g_hwnd, err.c_str(), APP_TITLE, MB_ICONWARNING); delete j; return; }
-    wstring q = L"Restore user '" + j->srcUser + L"' into:\n" + j->tgtProfile +
-                L"\n\nNewer files already on this PC are kept. Existing browser profiles are renamed to .bak.\nContinue?";
-    if (MessageBoxW(g_hwnd, q.c_str(), APP_TITLE, MB_ICONQUESTION | MB_YESNO) != IDYES) { delete j; return; }
+    if (!IsFile(Join(j->pkg, L"manifest.ini"))) err = T(S_ERR_PKG);
+    else if (j->srcUser.empty()) err = T(S_ERR_NOUSER);
+    else if (j->tgtProfile.empty()) err = T(S_ERR_TGT);
+    else if (!j->files && !j->browsers && !j->settings) err = T(S_ERR_NOTHING_R);
+    if (!err.empty()) { MsgBox(g_hwnd, err.c_str(), MB_ICONWARNING); delete j; return; }
+    wstring q = Fmt(T(S_Q_RESTORE), j->srcUser.c_str(), j->tgtProfile.c_str());
+    if (MsgBox(g_hwnd, q.c_str(), MB_ICONQUESTION | MB_YESNO) != IDYES) { delete j; return; }
     SetBusy(true);
     CloseHandle(CreateThread(nullptr, 0, RestoreThread, j, 0, nullptr));
 }
@@ -1959,82 +1965,215 @@ static void StartInstall() {
         LVITEMW it{}; it.mask = LVIF_PARAM; it.iItem = i; ListView_GetItem(hRProgs, &it);
         if (it.lParam >= 0 && it.lParam < (LPARAM)g_progs.size()) j->items.push_back(g_progs[it.lParam]);
     }
-    if (j->items.empty()) { MessageBoxW(g_hwnd, L"Check the programs you want to install / transfer.", APP_TITLE, MB_ICONINFORMATION); delete j; return; }
+    if (j->items.empty()) { MsgBox(g_hwnd, T(S_ERR_CHECK_PROGS), MB_ICONINFORMATION); delete j; return; }
     int ncopy = 0; for (auto& it : j->items) if (!it.pkgDir.empty()) ncopy++;
-    if (ncopy && j->tgtProfile.empty()) { MessageBoxW(g_hwnd, L"Choose the target profile ('Restore into this profile').", APP_TITLE, MB_ICONWARNING); delete j; return; }
-    wstring q = Fmt(L"%d program(s) selected:\n - %d saved in the package (copied with their data%ls)\n - %d to download with winget (needs Internet)\n\nTarget profile: %ls\n\nContinue?",
-                    (int)j->items.size(), ncopy, j->preferWinget ? L", or winget + data when an ID exists" : L"",
+    if (ncopy && j->tgtProfile.empty()) { MsgBox(g_hwnd, T(S_ERR_TGT2), MB_ICONWARNING); delete j; return; }
+    wstring q = Fmt(T(S_Q_INSTALL),
+                    (int)j->items.size(), ncopy, j->preferWinget ? T(S_Q_INSTALL_WG) : L"",
                     (int)j->items.size() - ncopy, j->tgtProfile.c_str());
-    if (MessageBoxW(g_hwnd, q.c_str(), APP_TITLE, MB_ICONQUESTION | MB_YESNO) != IDYES) { delete j; return; }
+    if (MsgBox(g_hwnd, q.c_str(), MB_ICONQUESTION | MB_YESNO) != IDYES) { delete j; return; }
     SetBusy(true);
     CloseHandle(CreateThread(nullptr, 0, InstallThread, j, 0, nullptr));
+}
+
+
+// ---------------------------------------------------------------------
+//  Language selection, settings window, window re-creation
+// ---------------------------------------------------------------------
+static HINSTANCE g_hInst;
+static bool g_switching = false;
+struct UiState { bool valid = false; int tab = 0; wstring dest, pkg, log; int b[5] = {}, r[4] = {}; };
+static UiState g_ui;
+static wstring IniPath() {
+    wchar_t p[MAX_PATH]; GetModuleFileNameW(nullptr, p, MAX_PATH);
+    wstring s = p; size_t i = s.find_last_of(L'\\');
+    return s.substr(0, i + 1) + L"PCMigrate.ini";
+}
+static int LangFromCode(const wstring& c) {
+    for (int i = 0; i < L_COUNT; ++i) if (IEquals(c, kLangCodes[i])) return i;
+    return -1;
+}
+static int DetectLang() {
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    for (int i = 1; argv && i < argc; ++i)
+        if (IStarts(argv[i], L"--lang=")) { int l = LangFromCode(argv[i] + 7); if (l >= 0) { LocalFree(argv); return l; } }
+    if (argv) LocalFree(argv);
+    wchar_t b[16] = L"";
+    GetPrivateProfileStringW(L"Settings", L"Language", L"", b, 16, IniPath().c_str());
+    int l = LangFromCode(b);
+    if (l >= 0) return l;
+    switch (PRIMARYLANGID(GetUserDefaultUILanguage())) {
+    case LANG_FRENCH: return L_FR;
+    case LANG_ARABIC: return L_AR;
+    case LANG_SPANISH: return L_ES;
+    default: return L_EN;
+    }
+}
+static void SaveLang() { WritePrivateProfileStringW(L"Settings", L"Language", kLangCodes[g_lang], IniPath().c_str()); }
+
+static HWND CreateMainWindow(int x, int y, int nShow);
+static void UpdateAppsLabel();
+static void CaptureUi() {
+    g_ui = UiState(); g_ui.valid = true;
+    g_ui.tab = TabCtrl_GetCurSel(g_tab);
+    g_ui.dest = GetText(hBDest); g_ui.pkg = GetText(hRPkg);
+    int n = GetWindowTextLengthW(g_log); g_ui.log.assign(n, 0); if (n) GetWindowTextW(g_log, &g_ui.log[0], n + 1);
+    HWND bb[] = {hBFiles, hBBrowsers, hBSettings, hBPrograms, hBApps}, rr[] = {hRFiles, hRBrowsers, hRSettings, hRPrefWinget};
+    for (int i = 0; i < 5; ++i) g_ui.b[i] = (int)SendMessageW(bb[i], BM_GETCHECK, 0, 0);
+    for (int i = 0; i < 4; ++i) g_ui.r[i] = (int)SendMessageW(rr[i], BM_GETCHECK, 0, 0);
+}
+static void RestoreUiAfterSwitch() {
+    UiState u = g_ui; g_ui.valid = false;
+    SetWindowTextW(g_log, u.log.c_str());
+    SendMessageW(g_log, EM_SETSEL, u.log.size(), u.log.size()); SendMessageW(g_log, EM_SCROLLCARET, 0, 0);
+    RefreshInstalls();
+    HWND bb[] = {hBFiles, hBBrowsers, hBSettings, hBPrograms, hBApps}, rr[] = {hRFiles, hRBrowsers, hRSettings, hRPrefWinget};
+    for (int i = 0; i < 5; ++i) SendMessageW(bb[i], BM_SETCHECK, u.b[i], 0);
+    for (int i = 0; i < 4; ++i) SendMessageW(rr[i], BM_SETCHECK, u.r[i], 0);
+    SetWindowTextW(hBDest, u.dest.c_str());
+    if (!u.pkg.empty()) { SetWindowTextW(hRPkg, u.pkg.c_str()); LoadPackage(); } else AutoFindPackage();
+    UpdateAppsLabel();
+    TabCtrl_SetCurSel(g_tab, u.tab); ShowPage(u.tab);
+}
+static void SwitchLanguage(int lang) {
+    if (lang < 0 || lang >= L_COUNT || lang == g_lang) return;
+    if (g_busy) { MsgBox(g_hwnd, T(S_BUSY_LANG), MB_ICONINFORMATION); return; }
+    CaptureUi();
+    g_lang = lang; SaveLang();
+    g_srcAppsKey.clear();                         // notes are re-read in the new language
+    RECT rc; GetWindowRect(g_hwnd, &rc);
+    HWND old = g_hwnd;
+    g_switching = true;
+    CreateMainWindow(rc.left, rc.top, SW_SHOW);   // WM_CREATE rebuilds everything from g_ui
+    DestroyWindow(old);
+    g_switching = false;
+}
+
+static bool g_setDone; static int g_setChoice; static HWND g_setCombo;
+static LRESULT CALLBACK SettingsProc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
+    switch (m) {
+    case WM_CREATE: {
+        auto mk = [&](const wchar_t* cls, const wchar_t* t, DWORD st, int x, int y, int w, int hh, int id) {
+            HWND c = CreateWindowExW(0, cls, t, WS_CHILD | WS_VISIBLE | st, S(x), S(y), S(w), S(hh), h, (HMENU)(INT_PTR)id, g_hInst, nullptr);
+            SendMessageW(c, WM_SETFONT, (WPARAM)g_font, TRUE);
+            return c;
+        };
+        mk(L"STATIC", T(S_SET_LANG), 0, 16, 16, 428, 20, -1);
+        g_setCombo = mk(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 16, 38, 260, 200, 10);
+        for (int i = 0; i < L_COUNT; ++i) SendMessageW(g_setCombo, CB_ADDSTRING, 0, (LPARAM)kLangNames[i]);
+        SendMessageW(g_setCombo, CB_SETCURSEL, g_lang, 0);
+        mk(L"STATIC", T(S_SET_NOTE), 0, 16, 76, 428, 44, -1);
+        mk(L"STATIC", Fmt(T(S_SET_ABOUT), APP_VERSION).c_str(), 0, 16, 130, 428, 40, -1);
+        mk(L"BUTTON", T(S_BTN_OK), BS_DEFPUSHBUTTON | WS_TABSTOP, 248, 190, 96, 30, IDOK);
+        mk(L"BUTTON", T(S_CANCEL), WS_TABSTOP, 352, 190, 96, 30, IDCANCEL);
+        return 0;
+    }
+    case WM_COMMAND:
+        if (LOWORD(wp) == IDOK) { g_setChoice = (int)SendMessageW(g_setCombo, CB_GETCURSEL, 0, 0); g_setDone = true; DestroyWindow(h); }
+        else if (LOWORD(wp) == IDCANCEL) { g_setDone = true; DestroyWindow(h); }
+        return 0;
+    case WM_CTLCOLORSTATIC: {
+        HDC dc = (HDC)wp; SetBkColor(dc, GetSysColor(COLOR_WINDOW)); SetTextColor(dc, GetSysColor(COLOR_WINDOWTEXT));
+        return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
+    }
+    case WM_CLOSE: g_setDone = true; DestroyWindow(h); return 0;
+    }
+    return DefWindowProcW(h, m, wp, lp);
+}
+static void ShowSettings() {
+    static bool reg = false;
+    if (!reg) {
+        WNDCLASSEXW wc{sizeof(wc)};
+        wc.lpfnWndProc = SettingsProc; wc.hInstance = g_hInst; wc.lpszClassName = L"PCMigrateSettings";
+        wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        RegisterClassExW(&wc); reg = true;
+    }
+    DWORD style = WS_POPUP | WS_CAPTION | WS_SYSMENU;
+    DWORD ex = WS_EX_DLGMODALFRAME | (g_lang == L_AR ? WS_EX_LAYOUTRTL : 0);
+    RECT r{0, 0, S(464), S(234)}; AdjustWindowRectEx(&r, style, FALSE, ex);
+    RECT pr; GetWindowRect(g_hwnd, &pr);
+    int w = r.right - r.left, hh = r.bottom - r.top;
+    g_setDone = false; g_setChoice = -1;
+    EnableWindow(g_hwnd, FALSE);
+    HWND dlg = CreateWindowExW(ex, L"PCMigrateSettings", T(S_SET_TITLE), style | WS_VISIBLE,
+                               pr.left + ((pr.right - pr.left) - w) / 2, pr.top + 120, w, hh, g_hwnd, nullptr, g_hInst, nullptr);
+    MSG msg;
+    while (!g_setDone && GetMessageW(&msg, nullptr, 0, 0)) {
+        if (!IsDialogMessageW(dlg, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
+    }
+    if (!g_setDone) PostQuitMessage((int)msg.wParam);
+    EnableWindow(g_hwnd, TRUE);
+    SetForegroundWindow(g_hwnd);
+    if (g_setChoice >= 0) SwitchLanguage(g_setChoice);
 }
 
 static void BuildUI() {
     // tab
     g_tab = Ctl(WC_TABCONTROLW, L"", WS_CLIPSIBLINGS | WS_TABSTOP, 10, 10, 800, 412, IDC_TAB, nullptr);
     TCITEMW ti{}; ti.mask = TCIF_TEXT;
-    ti.pszText = (LPWSTR)L"  1. Backup  (old PC)  "; TabCtrl_InsertItem(g_tab, 0, &ti);
-    ti.pszText = (LPWSTR)L"  2. Restore  (new PC)  "; TabCtrl_InsertItem(g_tab, 1, &ti);
+    ti.pszText = (LPWSTR)T(S_TAB_BACKUP); TabCtrl_InsertItem(g_tab, 0, &ti);
+    ti.pszText = (LPWSTR)T(S_TAB_RESTORE); TabCtrl_InsertItem(g_tab, 1, &ti);
 
     // ---- backup page
     auto* B = &g_pageB;
-    Ctl(L"STATIC", L"Source Windows installation (old PC):", 0, 24, 48, 400, 20, -1, B);
+    Ctl(L"STATIC", T(S_B_SRC), 0, 24, 48, 400, 20, -1, B);
     hBSrc = Ctl(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 24, 68, 580, 300, IDC_B_SRC, B);
-    hBRefresh = Ctl(L"BUTTON", L"Refresh", WS_TABSTOP, 614, 67, 180, 26, IDC_B_REFRESH, B);
-    Ctl(L"STATIC", L"User profiles to transfer:", 0, 24, 104, 300, 20, -1, B);
+    hBRefresh = Ctl(L"BUTTON", T(S_REFRESH), WS_TABSTOP, 614, 67, 180, 26, IDC_B_REFRESH, B);
+    Ctl(L"STATIC", T(S_B_USERS), 0, 24, 104, 300, 20, -1, B);
     hBUsers = Ctl(WC_LISTVIEWW, L"", LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_TABSTOP, 24, 124, 370, 186, IDC_B_USERS, B, WS_EX_CLIENTEDGE);
     ListView_SetExtendedListViewStyle(hBUsers, LVS_EX_CHECKBOXES | LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
-    AddColumn(hBUsers, 0, L"User", 120); AddColumn(hBUsers, 1, L"Profile folder", 220);
-    hBGroup = Ctl(L"BUTTON", L"What to transfer", BS_GROUPBOX, 410, 100, 384, 210, IDC_B_GROUP, B);
-    hBFiles = Ctl(L"BUTTON", L"User files  (Desktop, Documents, Pictures, Downloads...)", BS_AUTOCHECKBOX | WS_TABSTOP, 424, 126, 362, 24, IDC_B_FILES, B);
-    hBBrowsers = Ctl(L"BUTTON", L"Browsers  (Chrome, Edge, Brave, Opera, Firefox)", BS_AUTOCHECKBOX | WS_TABSTOP, 424, 154, 362, 24, IDC_B_BROWSERS, B);
-    hBSettings = Ctl(L"BUTTON", L"Windows settings  (mouse, keyboard, theme, wallpaper, Wi-Fi)", BS_AUTOCHECKBOX | WS_TABSTOP, 424, 182, 362, 24, IDC_B_SETTINGS, B);
-    hBPrograms = Ctl(L"BUTTON", L"List of installed programs  (reinstall with winget)", BS_AUTOCHECKBOX | WS_TABSTOP, 424, 210, 362, 24, IDC_B_PROGRAMS, B);
-    hBApps = Ctl(L"BUTTON", L"Programs with their files && data  (0 selected)", BS_AUTOCHECKBOX | WS_TABSTOP, 424, 238, 260, 24, IDC_B_APPS, B);
-    hBChoose = Ctl(L"BUTTON", L"Choose...", WS_TABSTOP, 690, 236, 96, 26, IDC_B_CHOOSE, B);
-    Ctl(L"STATIC", L"Works from Hiren's BootCD PE (offline) or from the running Windows. Close browsers/programs first when the old PC is running.", 0, 424, 268, 362, 38, -1, B);
-    Ctl(L"STATIC", L"Save the migration package to (external disk / USB):", 0, 24, 322, 500, 20, -1, B);
+    AddColumn(hBUsers, 0, T(S_COL_USER), 120); AddColumn(hBUsers, 1, T(S_COL_PROFILE), 220);
+    hBGroup = Ctl(L"BUTTON", T(S_B_GROUP), BS_GROUPBOX, 410, 100, 384, 210, IDC_B_GROUP, B);
+    hBFiles = Ctl(L"BUTTON", T(S_B_FILES), BS_AUTOCHECKBOX | WS_TABSTOP, 424, 126, 362, 24, IDC_B_FILES, B);
+    hBBrowsers = Ctl(L"BUTTON", T(S_B_BROWSERS), BS_AUTOCHECKBOX | WS_TABSTOP, 424, 154, 362, 24, IDC_B_BROWSERS, B);
+    hBSettings = Ctl(L"BUTTON", T(S_B_SETTINGS), BS_AUTOCHECKBOX | WS_TABSTOP, 424, 182, 362, 24, IDC_B_SETTINGS, B);
+    hBPrograms = Ctl(L"BUTTON", T(S_B_PROGRAMS), BS_AUTOCHECKBOX | WS_TABSTOP, 424, 210, 362, 24, IDC_B_PROGRAMS, B);
+    hBApps = Ctl(L"BUTTON", Fmt(T(S_B_APPS_FMT), 0).c_str(), BS_AUTOCHECKBOX | WS_TABSTOP, 424, 238, 260, 24, IDC_B_APPS, B);
+    hBChoose = Ctl(L"BUTTON", T(S_CHOOSE), WS_TABSTOP, 690, 236, 96, 26, IDC_B_CHOOSE, B);
+    Ctl(L"STATIC", T(S_B_TIP), 0, 424, 268, 362, 38, -1, B);
+    Ctl(L"STATIC", T(S_B_DEST), 0, 24, 322, 500, 20, -1, B);
     hBDest = Ctl(WC_EDITW, L"", ES_AUTOHSCROLL | WS_TABSTOP, 24, 342, 480, 26, IDC_B_DEST, B, WS_EX_CLIENTEDGE);
-    hBBrowse = Ctl(L"BUTTON", L"Browse...", WS_TABSTOP, 512, 341, 92, 28, IDC_B_BROWSE, B);
-    hBStart = Ctl(L"BUTTON", L"Start Backup", BS_DEFPUSHBUTTON | WS_TABSTOP, 614, 336, 180, 38, IDC_B_START, B);
+    hBBrowse = Ctl(L"BUTTON", T(S_BROWSE), WS_TABSTOP, 512, 341, 92, 28, IDC_B_BROWSE, B);
+    hBStart = Ctl(L"BUTTON", T(S_B_START), BS_DEFPUSHBUTTON | WS_TABSTOP, 614, 336, 180, 38, IDC_B_START, B);
     SendMessageW(hBStart, WM_SETFONT, (WPARAM)g_fontBold, TRUE);
     for (auto h : {hBFiles, hBBrowsers, hBSettings, hBPrograms}) SendMessageW(h, BM_SETCHECK, BST_CHECKED, 0);
 
     // ---- restore page
     auto* R = &g_pageR;
-    Ctl(L"STATIC", L"Migration package folder (PCMigrate_xxxx):", 0, 24, 48, 400, 20, -1, R);
+    Ctl(L"STATIC", T(S_R_PKG), 0, 24, 48, 400, 20, -1, R);
     hRPkg = Ctl(WC_EDITW, L"", ES_AUTOHSCROLL | WS_TABSTOP, 24, 68, 480, 26, IDC_R_PKG, R, WS_EX_CLIENTEDGE);
-    hRBrowse = Ctl(L"BUTTON", L"Browse...", WS_TABSTOP, 512, 67, 92, 28, IDC_R_BROWSE, R);
-    hRLoad = Ctl(L"BUTTON", L"Load", WS_TABSTOP, 614, 67, 180, 28, IDC_R_LOAD, R);
-    Ctl(L"STATIC", L"User in the package:", 0, 24, 104, 200, 20, -1, R);
+    hRBrowse = Ctl(L"BUTTON", T(S_BROWSE), WS_TABSTOP, 512, 67, 92, 28, IDC_R_BROWSE, R);
+    hRLoad = Ctl(L"BUTTON", T(S_LOAD), WS_TABSTOP, 614, 67, 180, 28, IDC_R_LOAD, R);
+    Ctl(L"STATIC", T(S_R_SRCUSER), 0, 24, 104, 200, 20, -1, R);
     hRSrcUser = Ctl(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 24, 124, 200, 300, IDC_R_SRCUSER, R);
-    Ctl(L"STATIC", L"Restore into this profile:", 0, 236, 104, 300, 20, -1, R);
+    Ctl(L"STATIC", T(S_R_TGT), 0, 236, 104, 300, 20, -1, R);
     hRTgt = Ctl(WC_COMBOBOXW, L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, 236, 124, 368, 300, IDC_R_TGT, R);
-    hRFiles = Ctl(L"BUTTON", L"User files", BS_AUTOCHECKBOX | WS_TABSTOP, 24, 160, 130, 24, IDC_R_FILES, R);
-    hRBrowsers = Ctl(L"BUTTON", L"Browsers", BS_AUTOCHECKBOX | WS_TABSTOP, 160, 160, 120, 24, IDC_R_BROWSERS, R);
-    hRSettings = Ctl(L"BUTTON", L"Windows settings + Wi-Fi", BS_AUTOCHECKBOX | WS_TABSTOP, 286, 160, 260, 24, IDC_R_SETTINGS, R);
-    hRStart = Ctl(L"BUTTON", L"Start Restore", BS_DEFPUSHBUTTON | WS_TABSTOP, 614, 112, 180, 38, IDC_R_START, R);
+    hRFiles = Ctl(L"BUTTON", T(S_R_FILES), BS_AUTOCHECKBOX | WS_TABSTOP, 24, 160, 130, 24, IDC_R_FILES, R);
+    hRBrowsers = Ctl(L"BUTTON", T(S_R_BROWSERS), BS_AUTOCHECKBOX | WS_TABSTOP, 160, 160, 120, 24, IDC_R_BROWSERS, R);
+    hRSettings = Ctl(L"BUTTON", T(S_R_SETTINGS), BS_AUTOCHECKBOX | WS_TABSTOP, 286, 160, 260, 24, IDC_R_SETTINGS, R);
+    hRStart = Ctl(L"BUTTON", T(S_R_START), BS_DEFPUSHBUTTON | WS_TABSTOP, 614, 112, 180, 38, IDC_R_START, R);
     SendMessageW(hRStart, WM_SETFONT, (WPARAM)g_fontBold, TRUE);
     for (auto h : {hRFiles, hRBrowsers, hRSettings}) SendMessageW(h, BM_SETCHECK, BST_CHECKED, 0);
-    Ctl(L"STATIC", L"Programs from the old PC  -  'Copy' = transferred from the package with its data,  'winget' = downloaded and installed:", 0, 24, 196, 770, 20, -1, R);
+    Ctl(L"STATIC", T(S_R_PROGS), 0, 24, 196, 770, 20, -1, R);
     hRProgs = Ctl(WC_LISTVIEWW, L"", LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_TABSTOP, 24, 216, 770, 160, IDC_R_PROGS, R, WS_EX_CLIENTEDGE);
     ListView_SetExtendedListViewStyle(hRProgs, LVS_EX_CHECKBOXES | LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
-    AddColumn(hRProgs, 0, L"Program", 330); AddColumn(hRProgs, 1, L"Version", 100); AddColumn(hRProgs, 2, L"Method", 310);
-    hRCheckAll = Ctl(L"BUTTON", L"Check recommended", WS_TABSTOP, 24, 382, 150, 30, IDC_R_CHECKALL, R);
-    hRUncheck = Ctl(L"BUTTON", L"Uncheck all", WS_TABSTOP, 180, 382, 100, 30, IDC_R_UNCHECK, R);
-    hRPrefWinget = Ctl(L"BUTTON", L"Prefer winget (clean install + data)", BS_AUTOCHECKBOX | WS_TABSTOP, 290, 385, 316, 24, IDC_R_PREFWINGET, R);
-    hRInstall = Ctl(L"BUTTON", L"Install / transfer checked", WS_TABSTOP, 614, 382, 180, 30, IDC_R_INSTALL, R);
+    AddColumn(hRProgs, 0, T(S_COL_PROGRAM), 330); AddColumn(hRProgs, 1, T(S_COL_VERSION), 100); AddColumn(hRProgs, 2, T(S_COL_METHOD), 310);
+    hRCheckAll = Ctl(L"BUTTON", T(S_CHECK_REC), WS_TABSTOP, 24, 382, 150, 30, IDC_R_CHECKALL, R);
+    hRUncheck = Ctl(L"BUTTON", T(S_UNCHECK), WS_TABSTOP, 180, 382, 100, 30, IDC_R_UNCHECK, R);
+    hRPrefWinget = Ctl(L"BUTTON", T(S_PREFWINGET), BS_AUTOCHECKBOX | WS_TABSTOP, 290, 385, 316, 24, IDC_R_PREFWINGET, R);
+    hRInstall = Ctl(L"BUTTON", T(S_INSTALL), WS_TABSTOP, 614, 382, 180, 30, IDC_R_INSTALL, R);
 
     // ---- common bottom area
     g_progress = Ctl(PROGRESS_CLASSW, L"", PBS_SMOOTH, 10, 432, 690, 22, IDC_PROGRESS, nullptr);
     SendMessageW(g_progress, PBM_SETRANGE32, 0, 1000);
-    g_cancelBtn = Ctl(L"BUTTON", L"Cancel", WS_TABSTOP, 710, 430, 100, 26, IDC_CANCEL, nullptr);
+    g_cancelBtn = Ctl(L"BUTTON", T(S_CANCEL), WS_TABSTOP, 710, 430, 100, 26, IDC_CANCEL, nullptr);
     EnableWindow(g_cancelBtn, FALSE);
-    g_status = Ctl(L"STATIC", L"Ready.", SS_ENDELLIPSIS | SS_NOPREFIX, 10, 460, 800, 20, IDC_STATUS, nullptr);
+    g_status = Ctl(L"STATIC", T(S_READY), SS_ENDELLIPSIS | SS_NOPREFIX, 10, 460, 800, 20, IDC_STATUS, nullptr);
     g_log = Ctl(WC_EDITW, L"", ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL, 10, 482, 800, 176, IDC_LOG, nullptr, WS_EX_CLIENTEDGE);
     SendMessageW(g_log, EM_SETLIMITTEXT, 0, 0);
 
+    hSettingsBtn = Ctl(L"BUTTON", T(S_SETTINGS), WS_TABSTOP, 690, 8, 120, 24, IDC_SETTINGS, nullptr);
     SetWindowPos(g_tab, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
     SetWindowPos(hBGroup, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
     SetWindowPos(g_tab, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
@@ -2046,7 +2185,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CREATE: {
         g_hwnd = hwnd;
         BuildUI();
-        Log(wstring(APP_TITLE) + (g_isPE ? L"  -  running in WinPE (offline mode)" : L"  -  running on Windows " + g_sysDrive));
+        if (g_ui.valid) { RestoreUiAfterSwitch(); return 0; }
+        Log(wstring(APP_TITLE) + (g_isPE ? W(S_L_RUN_PE) : Fmt(T(S_L_RUN_WIN), g_sysDrive.c_str())));
         RefreshInstalls();
         AutoFindPackage();
         return 0;
@@ -2061,7 +2201,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         switch (id) {
         case IDC_B_SRC: if (code == CBN_SELCHANGE) { FillUsers(); int s = (int)SendMessageW(hBSrc, CB_GETCURSEL, 0, 0); if (s >= 0) SetWindowTextW(hBDest, SuggestDest(g_installs[s].drive).c_str()); } break;
         case IDC_B_REFRESH: RefreshInstalls(); AutoFindPackage(); break;
-        case IDC_B_BROWSE: { wstring p = BrowseFolder(L"Where to save the migration package (external disk / USB):"); if (!p.empty()) SetWindowTextW(hBDest, p.c_str()); } break;
+        case IDC_B_BROWSE: { wstring p = BrowseFolder(T(S_BROWSE_DEST)); if (!p.empty()) SetWindowTextW(hBDest, p.c_str()); } break;
         case IDC_B_START: StartBackup(); break;
         case IDC_B_CHOOSE: ShowChooser(); break;
         case IDC_B_APPS:
@@ -2070,7 +2210,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 if (!n) ShowChooser();
             }
             break;
-        case IDC_R_BROWSE: { wstring p = BrowseFolder(L"Select the PCMigrate_xxxx package folder:"); if (!p.empty()) { SetWindowTextW(hRPkg, p.c_str()); LoadPackage(); } } break;
+        case IDC_R_BROWSE: { wstring p = BrowseFolder(T(S_BROWSE_PKG)); if (!p.empty()) { SetWindowTextW(hRPkg, p.c_str()); LoadPackage(); } } break;
         case IDC_R_LOAD: LoadPackage(); break;
         case IDC_R_START: StartRestore(); break;
         case IDC_R_CHECKALL:
@@ -2081,7 +2221,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
         case IDC_R_UNCHECK: for (int i = 0, n = ListView_GetItemCount(hRProgs); i < n; ++i) ListView_SetCheckState(hRProgs, i, FALSE); break;
         case IDC_R_INSTALL: StartInstall(); break;
-        case IDC_CANCEL: g_cancel = TRUE; Log(L"Cancelling ..."); break;
+        case IDC_CANCEL: g_cancel = TRUE; Log(W(S_L_CANCELLING)); break;
+        case IDC_SETTINGS: ShowSettings(); break;
         }
         return 0;
     }
@@ -2097,16 +2238,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         wstring* s = (wstring*)lp; if (s) { SetWindowTextW(g_status, s->c_str()); delete s; }
         return 0;
     }
-    case WM_APP_DONE: SetBusy(false); SetWindowTextW(g_status, g_cancel ? L"Cancelled." : L"Finished. See the log below."); MessageBeep(MB_ICONINFORMATION); return 0;
+    case WM_APP_DONE: SetBusy(false); SetWindowTextW(g_status, g_cancel ? T(S_ST_CANCELLED) : T(S_ST_FINISHED)); MessageBeep(MB_ICONINFORMATION); return 0;
     case WM_CLOSE:
         if (g_busy) {
-            if (MessageBoxW(hwnd, L"A job is running. Cancel it and exit?", APP_TITLE, MB_ICONWARNING | MB_YESNO) != IDYES) return 0;
+            if (MsgBox(hwnd, T(S_Q_EXIT), MB_ICONWARNING | MB_YESNO) != IDYES) return 0;
             g_cancel = TRUE;
             Sleep(800);
         }
         DestroyWindow(hwnd);
         return 0;
-    case WM_DESTROY: PostQuitMessage(0); return 0;
+    case WM_DESTROY: if (!g_switching) PostQuitMessage(0); return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
@@ -2119,6 +2260,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nShow) {
     EnablePrivilege(SE_BACKUP_NAME);
     EnablePrivilege(SE_RESTORE_NAME);
     g_isPE = DetectWinPE();
+    g_hInst = hInst;
+    g_lang = DetectLang();
     wchar_t wd[MAX_PATH]; GetWindowsDirectoryW(wd, MAX_PATH);
     g_sysDrive = wstring(wd).substr(0, 2);
 
@@ -2137,19 +2280,25 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int nShow) {
     wc.hIconSm = wc.hIcon;
     RegisterClassExW(&wc);
 
-    RECT r{0, 0, S(820), S(668)};
-    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-    AdjustWindowRect(&r, style, FALSE);
-    int w = r.right - r.left, h = r.bottom - r.top;
-    int x = (GetSystemMetrics(SM_CXSCREEN) - w) / 2, y = (GetSystemMetrics(SM_CYSCREEN) - h) / 2;
-    HWND hwnd = CreateWindowExW(0, wc.lpszClassName, APP_TITLE, style, x < 0 ? 0 : x, y < 0 ? 0 : y, w, h, nullptr, nullptr, hInst, nullptr);
-    ShowWindow(hwnd, nShow);
-    UpdateWindow(hwnd);
+    CreateMainWindow(-1, -1, nShow);
 
     MSG m;
     while (GetMessageW(&m, nullptr, 0, 0)) {
-        if (!IsDialogMessageW(hwnd, &m)) { TranslateMessage(&m); DispatchMessageW(&m); }
+        if (!IsDialogMessageW(g_hwnd, &m)) { TranslateMessage(&m); DispatchMessageW(&m); }
     }
     OleUninitialize();
     return 0;
+}
+
+static HWND CreateMainWindow(int x, int y, int nShow) {
+    RECT r{0, 0, S(820), S(668)};
+    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    DWORD ex = g_lang == L_AR ? WS_EX_LAYOUTRTL : 0;     // Arabic: mirrored right-to-left layout
+    AdjustWindowRectEx(&r, style, FALSE, ex);
+    int w = r.right - r.left, h = r.bottom - r.top;
+    if (x < 0 || y < 0) { x = (GetSystemMetrics(SM_CXSCREEN) - w) / 2; y = (GetSystemMetrics(SM_CYSCREEN) - h) / 2; }
+    HWND hwnd = CreateWindowExW(ex, L"PCMigrateWnd", APP_TITLE, style, x < 0 ? 0 : x, y < 0 ? 0 : y, w, h, nullptr, nullptr, g_hInst, nullptr);
+    ShowWindow(hwnd, nShow);
+    UpdateWindow(hwnd);
+    return hwnd;
 }

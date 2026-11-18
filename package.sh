@@ -12,7 +12,7 @@ cp build/PCMigrate.exe dist/
 cp build/PCMigrate.exe launcher/Run-PCMigrate.bat launcher/Copy-To-USB.bat dist/portable/PCMigrate/
 cp docs/README_AR.md dist/portable/PCMigrate/README_AR.md
 cp LICENSE dist/portable/PCMigrate/LICENSE.txt
-(cd dist/portable && zip -qr "../PCMigrate-Portable-$VER.zip" PCMigrate)
+(cd dist/portable && zip -qr "../PCMigrate-Portable.zip" PCMigrate)
 rm -rf dist/portable
 # installer
 makensis -V2 -DVERSION="$VER" installer/PCMigrate.nsi

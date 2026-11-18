@@ -1,10 +1,11 @@
-# PC Migrate Portable 1.1
+# PC Migrate Portable 1.2
 
 برنامج لنقل المستخدم من حاسوب قديم إلى حاسوب جديد، على طريقة PCmover.
 
-- **Portable 100%:** ملف واحد `PCMigrate.exe` حجمه حوالي 470 KB.
+- **Portable 100%:** ملف واحد `PCMigrate.exe` حجمه حوالي 540 KB.
 - **مكتوب بـ C++ / Win32 API ومربوط ربطًا ثابتًا (Static):** لا يحتاج .NET ولا Python ولا أي مكتبة. يعتمد فقط على ملفات DLL الموجودة في كل ويندوز وفي WinPE.
 - **أين يعمل؟** على Windows 10/11 العادي، وداخل **Hiren's BootCD PE** عند الإقلاع من USB.
+- **لغات الواجهة:** English و Français و العربية و Español. تُغيَّر من زر **الإعدادات** في أعلى النافذة، ويُحفظ الاختيار في `PCMigrate.ini`.
 
 ---
 

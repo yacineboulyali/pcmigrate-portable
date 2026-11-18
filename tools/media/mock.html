@@ -50,6 +50,14 @@ body{font-family:'Segoe UI',Inter,'Liberation Sans',sans-serif;font-size:11.5px;
 .prog i{position:absolute;left:0;top:0;bottom:0;background:#06b025}
 .log{position:absolute;border:1px solid #7a7a7a;background:#fff;padding:2px 4px;font-family:Consolas,'DejaVu Sans Mono',monospace;font-size:10.5px;line-height:14px;overflow:hidden;white-space:pre;color:#111}
 .log .w{color:#b45309}.log .ok{color:#047857;font-weight:600}
+.rtl{direction:rtl}
+.rtl .combo{padding:0 5px 0 22px}.rtl .combo:after{right:auto;left:7px}
+.rtl .box{margin-right:0;margin-left:6px}.rtl .lv .row .box{margin-right:0;margin-left:5px}
+.rtl .group span{left:auto;right:8px}
+.rtl .prog i{left:auto;right:0}
+.rtl.title .btns{right:auto;left:0}
+.rtl.title .ico{margin:0 9px 0 8px}
+.edit,.combo,.lv .row div,.lv .hdr div,.log,.lbl{unicode-bidi:plaintext}
 /* modal dim */
 .dim{position:absolute;inset:0;background:rgba(0,0,0,.08)}
 /* message box */
@@ -85,14 +93,17 @@ body{font-family:'Segoe UI',Inter,'Liberation Sans',sans-serif;font-size:11.5px;
 <script>
 const ICON = `<svg class="ico" viewBox="0 0 16 16"><rect x="0.5" y="2" width="6.5" height="5" rx="1" fill="#5a6473"/><rect x="9" y="2" width="6.5" height="5" rx="1" fill="#146ed2"/><rect x="1.3" y="2.8" width="4.9" height="3.4" fill="#eaf5ff"/><rect x="9.8" y="2.8" width="4.9" height="3.4" fill="#eaf5ff"/><path d="M4.5 12h5v-1.6l3 2.6-3 2.6V14h-5z" fill="#1fa050"/></svg>`;
 const CURSOR = `<svg viewBox="0 0 22 30"><path d="M2 1 L2 24 L7.5 18.5 L11.5 28 L15 26.5 L11 17.5 L19 17.5 Z" fill="#fff" stroke="#000" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+let UI={}, RTL=false, CW=820;
+function U(k,f){let v=UI[k]; if(v==null) v=f; return String(v).replace(/&&/g,'&');}
+function MX(x,w){return RTL?CW-x-w:x}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')}
-function btn(x,y,w,h,t,cls=''){return `<div class="btn ${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">${t}</div>`}
-function lbl(x,y,w,t,extra=''){return `<div class="a lbl" style="left:${x}px;top:${y}px;width:${w}px;${extra}">${t}</div>`}
-function chk(x,y,w,t,on,cls=''){return `<div class="chk ${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:24px"><div class="box ${on?'on':''}"></div>${t}</div>`}
-function edit(x,y,w,h,t){return `<div class="edit" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">${esc(t)}</div>`}
-function combo(x,y,w,t){return `<div class="combo" style="left:${x}px;top:${y}px;width:${w}px">${esc(t)}</div>`}
+function btn(x,y,w,h,t,cls=''){return `<div class="btn ${cls}" style="left:${MX(x,w)}px;top:${y}px;width:${w}px;height:${h}px">${t}</div>`}
+function lbl(x,y,w,t,extra=''){return `<div class="a lbl" style="left:${MX(x,w)}px;top:${y}px;width:${w}px;${extra}">${t}</div>`}
+function chk(x,y,w,t,on,cls=''){return `<div class="chk ${cls}" style="left:${MX(x,w)}px;top:${y}px;width:${w}px;height:24px"><div class="box ${on?'on':''}"></div>${t}</div>`}
+function edit(x,y,w,h,t){return `<div class="edit" style="left:${MX(x,w)}px;top:${y}px;width:${w}px;height:${h}px">${esc(t)}</div>`}
+function combo(x,y,w,t){return `<div class="combo" style="left:${MX(x,w)}px;top:${y}px;width:${w}px">${esc(t)}</div>`}
 function lv(x,y,w,h,cols,rows,checks=true){
-  let s=`<div class="lv" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><div class="hdr">`;
+  let s=`<div class="lv" style="left:${MX(x,w)}px;top:${y}px;width:${w}px;height:${h}px"><div class="hdr">`;
   cols.forEach(c=>s+=`<div style="width:${c[1]}px">${c[0]}</div>`); s+='</div>';
   rows.forEach(r=>{s+=`<div class="row ${r.sel?'sel':''}">`;
     r.cells.forEach((c,i)=>{s+=`<div style="width:${cols[i][1]}px">${i==0&&checks?`<span class="box ${r.checked?'on':''}"></span>`:''}${esc(c)}</div>`});
@@ -101,75 +112,80 @@ function lv(x,y,w,h,cols,rows,checks=true){
 }
 function winFrame(x,y,w,h,title,inner,extraStyle=''){
   return `<div class="win" style="left:${x}px;top:${y}px;width:${w}px;${extraStyle}">
-   <div class="title">${ICON}<span class="t">${title}</span><div class="btns"><div>&#x2014;</div><div style="opacity:.35">&#x25A1;</div><div>&#x2715;</div></div></div>
-   <div class="client" style="height:${h}px">${inner}</div></div>`;
+   <div class="title ${RTL?'rtl':''}">${ICON}<span class="t">${title}</span><div class="btns"><div>&#x2014;</div><div style="opacity:.35">&#x25A1;</div><div>&#x2715;</div></div></div>
+   <div class="client ${RTL?'rtl':''}" style="height:${h}px">${inner}</div></div>`;
 }
 function hot(st,id){return st.hot===id?'hot':(st.press===id?'press':'')}
 function mainClient(st){
+  CW=820;
   const b=st.b, r=st.r, busy=st.busy;
   let s='';
   s+=`<div class="tabctl" style="left:10px;top:33px;width:800px;height:389px"></div><div class="tabline"></div>`;
-  s+=`<div class="tabs"><div class="tab ${st.tab==0?'sel':''}">  1. Backup  (old PC)  </div><div class="tab ${st.tab==1?'sel':''}">  2. Restore  (new PC)  </div></div>`;
+  s+=`<div class="tabs" style="${RTL?'left:auto;right:10px':''}"><div class="tab ${st.tab==0?'sel':''}">${esc(U('S_TAB_BACKUP','  1. Backup  (old PC)  '))}</div><div class="tab ${st.tab==1?'sel':''}">${esc(U('S_TAB_RESTORE','  2. Restore  (new PC)  '))}</div></div>`;
+  s+=btn(690,8,120,24,U('S_SETTINGS','Settings'));
   if(st.tab==0){
-    s+=lbl(24,49,400,'Source Windows installation (old PC):');
+    s+=lbl(24,49,400,esc(U('S_B_SRC','Source Windows installation (old PC):')));
     s+=combo(24,68,580,b.src);
-    s+=btn(614,67,180,26,'Refresh',busy?'dis':hot(st,'refresh'));
-    s+=lbl(24,105,300,'User profiles to transfer:');
-    s+=lv(24,124,370,186,[['User',120],['Profile folder',246]],b.users.map(u=>({cells:[u.name,u.path],checked:u.checked})));
-    s+=`<div class="group" style="left:410px;top:100px;width:384px;height:210px"><span>What to transfer</span></div>`;
-    s+=chk(424,126,362,'User files  (Desktop, Documents, Pictures, Downloads...)',b.files);
-    s+=chk(424,154,362,'Browsers  (Chrome, Edge, Brave, Opera, Firefox)',b.browsers);
-    s+=chk(424,182,362,'Windows settings  (mouse, keyboard, theme, wallpaper, Wi-Fi)',b.settings);
-    s+=chk(424,210,362,'List of installed programs  (reinstall with winget)',b.programs);
-    s+=chk(424,238,262,`Programs with their files &amp; data  (${b.appsCount} selected)`,b.apps);
-    s+=btn(690,236,96,26,'Choose...',busy?'dis':hot(st,'choose'));
-    s+=lbl(424,270,362,"Works from Hiren's BootCD PE (offline) or from the running Windows. Close browsers/programs first when the old PC is running.",'color:#222;font-size:11px;line-height:14px');
-    s+=lbl(24,323,500,'Save the migration package to (external disk / USB):');
+    s+=btn(614,67,180,26,U('S_REFRESH','Refresh'),busy?'dis':hot(st,'refresh'));
+    s+=lbl(24,105,300,esc(U('S_B_USERS','User profiles to transfer:')));
+    s+=lv(24,124,370,186,[[U('S_COL_USER','User'),120],[U('S_COL_PROFILE','Profile folder'),246]],b.users.map(u=>({cells:[u.name,u.path],checked:u.checked})));
+    s+=`<div class="group" style="left:${MX(410,384)}px;top:100px;width:384px;height:210px"><span>${esc(U('S_B_GROUP','What to transfer'))}</span></div>`;
+    s+=chk(424,126,362,esc(U('S_B_FILES','User files  (Desktop, Documents, Pictures, Downloads...)')),b.files);
+    s+=chk(424,154,362,esc(U('S_B_BROWSERS','Browsers  (Chrome, Edge, Brave, Opera, Firefox)')),b.browsers);
+    s+=chk(424,182,362,esc(U('S_B_SETTINGS','Windows settings  (mouse, keyboard, theme, wallpaper, Wi-Fi)')),b.settings);
+    s+=chk(424,210,362,esc(U('S_B_PROGRAMS','List of installed programs  (reinstall with winget)')),b.programs);
+    s+=chk(424,238,262,esc(U('S_B_APPS_FMT','Programs with their files && data  (%d selected)').replace('%d',b.appsCount)),b.apps);
+    s+=btn(690,236,96,26,U('S_CHOOSE','Choose...'),busy?'dis':hot(st,'choose'));
+    s+=lbl(424,270,362,esc(U('S_B_TIP',"Works from Hiren's BootCD PE (offline) or from the running Windows. Close browsers/programs first when the old PC is running.")),'color:#222;font-size:11px;line-height:14px');
+    s+=lbl(24,323,500,esc(U('S_B_DEST','Save the migration package to (external disk / USB):')));
     s+=edit(24,342,480,26,b.dest);
-    s+=btn(512,341,92,28,'Browse...',busy?'dis':hot(st,'bbrowse'));
-    s+=btn(614,336,180,38,'Start Backup','def bold '+(busy?'dis':hot(st,'bstart')));
+    s+=btn(512,341,92,28,U('S_BROWSE','Browse...'),busy?'dis':hot(st,'bbrowse'));
+    s+=btn(614,336,180,38,U('S_B_START','Start Backup'),'def bold '+(busy?'dis':hot(st,'bstart')));
   } else {
-    s+=lbl(24,49,400,'Migration package folder (PCMigrate_xxxx):');
+    s+=lbl(24,49,400,esc(U('S_R_PKG','Migration package folder (PCMigrate_xxxx):')));
     s+=edit(24,68,480,26,r.pkg);
-    s+=btn(512,67,92,28,'Browse...',busy?'dis':'');
-    s+=btn(614,67,180,28,'Load',busy?'dis':hot(st,'load'));
-    s+=lbl(24,105,200,'User in the package:');
+    s+=btn(512,67,92,28,U('S_BROWSE','Browse...'),busy?'dis':'');
+    s+=btn(614,67,180,28,U('S_LOAD','Load'),busy?'dis':hot(st,'load'));
+    s+=lbl(24,105,200,esc(U('S_R_SRCUSER','User in the package:')));
     s+=combo(24,124,200,r.srcUser);
-    s+=lbl(236,105,300,'Restore into this profile:');
+    s+=lbl(236,105,300,esc(U('S_R_TGT','Restore into this profile:')));
     s+=combo(236,124,368,r.tgt);
-    s+=chk(24,160,130,'User files',r.files);
-    s+=chk(160,160,120,'Browsers',r.browsers);
-    s+=chk(286,160,260,'Windows settings + Wi-Fi',r.settings);
-    s+=btn(614,112,180,38,'Start Restore','def bold '+(busy?'dis':hot(st,'rstart')));
-    s+=lbl(24,197,770,"Programs from the old PC  -  'Copy' = transferred from the package with its data,  'winget' = downloaded and installed:");
-    s+=lv(24,216,770,160,[['Program',330],['Version',100],['Method',336]],r.progs.map(p=>({cells:[p.name,p.ver,p.method],checked:p.checked,sel:p.sel})));
-    s+=btn(24,382,150,30,'Check recommended',busy?'dis':'');
-    s+=btn(180,382,100,30,'Uncheck all',busy?'dis':'');
-    s+=chk(290,385,316,'Prefer winget (clean install + data)',r.prefer);
-    s+=btn(614,382,180,30,'Install / transfer checked',busy?'dis':hot(st,'install'));
+    s+=chk(24,160,130,esc(U('S_R_FILES','User files')),r.files);
+    s+=chk(160,160,120,esc(U('S_R_BROWSERS','Browsers')),r.browsers);
+    s+=chk(286,160,260,esc(U('S_R_SETTINGS','Windows settings + Wi-Fi')),r.settings);
+    s+=btn(614,112,180,38,U('S_R_START','Start Restore'),'def bold '+(busy?'dis':hot(st,'rstart')));
+    s+=lbl(24,197,770,esc(U('S_R_PROGS',"Programs from the old PC  -  'Copy' = transferred from the package with its data,  'winget' = downloaded and installed:")));
+    s+=lv(24,216,770,160,[[U('S_COL_PROGRAM','Program'),330],[U('S_COL_VERSION','Version'),100],[U('S_COL_METHOD','Method'),336]],r.progs.map(p=>({cells:[p.name,p.ver,p.method],checked:p.checked,sel:p.sel})));
+    s+=btn(24,382,150,30,U('S_CHECK_REC','Check recommended'),busy?'dis':'');
+    s+=btn(180,382,100,30,U('S_UNCHECK','Uncheck all'),busy?'dis':'');
+    s+=chk(290,385,316,esc(U('S_PREFWINGET','Prefer winget (clean install + data)')),r.prefer);
+    s+=btn(614,382,180,30,U('S_INSTALL','Install / transfer checked'),busy?'dis':hot(st,'install'));
   }
-  s+=`<div class="prog" style="left:10px;top:432px;width:690px;height:22px"><i style="width:${(st.progress||0)/10}%"></i></div>`;
-  s+=btn(710,430,100,26,'Cancel',busy?hot(st,'cancel'):'dis');
-  s+=lbl(10,461,800,esc(st.status||'Ready.'),'white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
+  s+=`<div class="prog" style="left:${MX(10,690)}px;top:432px;width:690px;height:22px"><i style="width:${(st.progress||0)/10}%"></i></div>`;
+  s+=btn(710,430,100,26,U('S_CANCEL','Cancel'),busy?hot(st,'cancel'):'dis');
+  s+=lbl(10,461,800,esc(st.status||U('S_READY','Ready.')),'white-space:nowrap;overflow:hidden;text-overflow:ellipsis');
   const lines=(st.log||[]).slice(-12).map(l=>{let c='';if(/!|WARNING/.test(l))c='w';if(/=====.*(FINISHED|finished)|OK$|Package ready/.test(l))c='ok';return `<span class="${c}">${esc(l)}</span>`}).join('\n');
   s+=`<div class="log" style="left:10px;top:482px;width:800px;height:176px">${lines}</div>`;
   return s;
 }
 function chooserClient(c,st){
+  CW=840;
   let s='';
-  s+=lbl(12,8,816,'Select the programs to move WITH their files, registry, services, shortcuts and user data.\nBest for normal desktop programs. Antivirus, VPN, drivers and hardware-locked licences usually need a reinstall.','line-height:16px');
-  s+=lv(12,50,816,400,[['Program',270],['Version',90],['Size',75],['Install folder / notes',381]],c.apps.map(a=>({cells:[a.name,a.ver,a.size,a.info],checked:a.checked,sel:a.sel})));
-  s+=btn(12,460,100,30,'Select all');
-  s+=btn(120,460,100,30,'Select none');
-  s+=btn(628,460,96,30,'OK','def '+hot(st,'ok'));
-  s+=btn(732,460,96,30,'Cancel');
+  s+=lbl(12,8,816,esc(U('S_CH_INTRO','Select the programs to move WITH their files, registry, services, shortcuts and user data.\nBest for normal desktop programs. Antivirus, VPN, drivers and hardware-locked licences usually need a reinstall.')),'line-height:16px');
+  s+=lv(12,50,816,400,[[U('S_COL_PROGRAM','Program'),270],[U('S_COL_VERSION','Version'),90],[U('S_COL_SIZE','Size'),75],[U('S_COL_INSTALL','Install folder / notes'),381]],c.apps.map(a=>({cells:[a.name,a.ver,a.size,a.info],checked:a.checked,sel:a.sel})));
+  s+=btn(12,460,100,30,U('S_SELECT_ALL','Select all'));
+  s+=btn(120,460,100,30,U('S_SELECT_NONE','Select none'));
+  s+=btn(628,460,96,30,U('S_BTN_OK','OK'),'def '+hot(st,'ok'));
+  s+=btn(732,460,96,30,U('S_CANCEL','Cancel'));
   return s;
 }
 function msgClient(m,st){
+  CW=m.w;
   return `<div class="mb"><div class="msg" style="height:${m.h-42}px"><div class="qicon">?</div><div>${esc(m.text)}</div></div>
-    <div class="bar">${btn(m.w-182,9,80,24,'Yes','def '+hot(st,'yes'))}${btn(m.w-94,9,80,24,'No')}</div></div>`;
+    <div class="bar">${btn(m.w-182,9,80,24,U('YES','Yes'),'def '+hot(st,'yes'))}${btn(m.w-94,9,80,24,U('NO','No'))}</div></div>`;
 }
 function render(st){
+  UI=st.ui||{}; RTL=!!st.rtl;
   const R=document.getElementById('root');
   let s='', ox, oy;
   if(st.mode==='annot'){
@@ -179,28 +195,28 @@ function render(st){
   } else {
     s+=`<div class="stage-gif">`;
     ox=39; oy=52;
-    s+=`<div class="topbar"><div class="l">PC Migrate Portable 1.1</div><div class="r" style="direction:${st.capDir||'rtl'}">${st.topRight||''}</div></div>`;
+    s+=`<div class="topbar"><div class="l">PC Migrate Portable 1.2</div><div class="r" style="direction:${st.capDir||'rtl'}">${st.topRight||''}</div></div>`;
   }
   // main window
   if(!st.hideMain){
     let inner=mainClient(st);
     if(st.chooser||st.msgbox) inner+='<div class="dim"></div>';
-    s+=winFrame(ox,oy,820,668,'PC Migrate Portable 1.1',inner);
+    s+=winFrame(ox,oy,820,668,'PC Migrate Portable 1.2',inner);
   }
   if(st.chooser){
     const cx=st.chooserPos?st.chooserPos[0]:ox-10, cy=st.chooserPos?st.chooserPos[1]:oy+80;
     let inner=chooserClient(st.chooser,st); if(st.msgbox) inner+='<div class="dim"></div>';
-    s+=winFrame(cx,cy,840,502,'Choose programs to transfer with their data',inner);
+    s+=winFrame(cx,cy,840,502,esc(U('S_CH_TITLE','Choose programs to transfer with their data')),inner);
   }
   if(st.msgbox){
     const m=st.msgbox; m.w=m.w||430; m.h=m.h||170;
     const mx=ox+(820-m.w)/2, my=oy+(668-m.h)/2;
-    s+=winFrame(mx,my,m.w,m.h,'PC Migrate Portable 1.1',msgClient(m,st));
+    s+=winFrame(mx,my,m.w,m.h,'PC Migrate Portable 1.2',msgClient(m,st));
   }
   // highlights / badges (window client coords -> page)
   const base=(st.badgeBase||[ox, oy+31]);
-  (st.hl||[]).forEach(h=>{s+=`<div class="hl" style="left:${base[0]+h[0]-4}px;top:${base[1]+h[1]-4}px;width:${h[2]+8}px;height:${h[3]+8}px"></div>`});
-  (st.badges||[]).forEach(b=>{s+=`<div class="badge" style="left:${base[0]+b[1]}px;top:${base[1]+b[2]}px">${b[0]}</div>`});
+  (st.hl||[]).forEach(h=>{const hx=RTL?(st.badgeW||820)-h[0]-h[2]:h[0];s+=`<div class="hl" style="left:${base[0]+hx-4}px;top:${base[1]+h[1]-4}px;width:${h[2]+8}px;height:${h[3]+8}px"></div>`});
+  (st.badges||[]).forEach(b=>{const bx=RTL?(st.badgeW||820)-b[1]:b[1];s+=`<div class="badge" style="left:${base[0]+bx}px;top:${base[1]+b[2]}px">${b[0]}</div>`});
   if(st.panel) s+=st.panel;
   if(st.caption) s+=`<div class="cap" style="direction:${st.capDir||'rtl'}"><div class="num">${st.caption.n}</div><div class="txt">${st.caption.t}${st.caption.s?`<small>${st.caption.s}</small>`:''}</div></div>`;
   if(st.ripple) s+=`<div class="ripple" style="left:${st.ripple[0]}px;top:${st.ripple[1]}px;transform:scale(${st.ripple[2]||1});opacity:${st.ripple[3]??1}"></div>`;

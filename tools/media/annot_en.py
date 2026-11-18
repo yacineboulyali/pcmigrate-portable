@@ -1,6 +1,8 @@
 import asyncio, os
 from playwright.async_api import async_playwright
 import annot as A
+import data
+data.LANG = 'en'
 
 def panel_en(x, y, w, title, sub, items, tip=None):
     s = f'<div class="panel" style="left:{x}px;top:{y}px;width:{w}px;direction:ltr;text-align:left"><h1 style="font-family:Inter">{title}</h1><div class="sub">{sub}</div>'
